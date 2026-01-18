@@ -21,6 +21,9 @@ builds:
       - arm64
     ldflags:
       - -s -w
+      - -X github.com/abdul-hamid-achik/gpeek/internal/version.Version={{.Version}}
+      - -X github.com/abdul-hamid-achik/gpeek/internal/version.Commit={{.ShortCommit}}
+      - -X github.com/abdul-hamid-achik/gpeek/internal/version.Date={{.Date}}
 
 archives:
   - id: default
@@ -63,7 +66,7 @@ brews:
     install: |
       bin.install "gpeek"
     test: |
-      system "#{bin}/gpeek", "--help"
+      system "#{bin}/gpeek", "--version"
     skip_upload: "{{ if .Env.HOMEBREW_TAP_TOKEN }}false{{ else }}true{{ end }}"
 
 nfpms:
