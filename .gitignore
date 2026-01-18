@@ -1,5 +1,5 @@
 # Binaries
-gpeek
+/gpeek
 *.exe
 *.exe~
 *.dll
