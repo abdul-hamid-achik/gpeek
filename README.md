@@ -75,6 +75,7 @@ gpeek /path/to/repo
 | `p` | Pull from remote |
 | `f` | Fetch from remote |
 | `Enter` | Checkout branch (in Branches panel) |
+| `Enter` | View commit diff (in Commits panel) |
 | `n` | Create new branch |
 | `d` | Delete branch |
 
@@ -82,7 +83,7 @@ gpeek /path/to/repo
 
 | Key | Action |
 |-----|--------|
-| `v` | Toggle diff view modal |
+| `v` | Toggle diff view (Files panel) |
 | `w` | Worktree management |
 | `?` | Show help |
 | `Ctrl+r` | Refresh all panels |

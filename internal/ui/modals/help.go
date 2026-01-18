@@ -53,40 +53,31 @@ func (m *HelpModal) Update(msg tea.Msg) (Modal, tea.Cmd) {
 }
 
 func (m *HelpModal) View() string {
-	title := m.styles.ModalTitle.Render(" Help ")
+	titleStyle := lipgloss.NewStyle().
+		Foreground(lipgloss.Color(m.styles.Theme.Primary)).
+		Background(lipgloss.Color(m.styles.Theme.Background)).
+		Bold(true).
+		Padding(0, 1)
+
+	title := titleStyle.Render("Help")
 
 	content := m.viewport.View()
 
-	footer := m.styles.Dim.Render("Press ? or Esc to close")
+	footerStyle := lipgloss.NewStyle().
+		Foreground(lipgloss.Color(m.styles.Theme.Muted)).
+		Background(lipgloss.Color(m.styles.Theme.Background))
+
+	footer := footerStyle.Render("Press ? or Esc to close")
 
 	body := lipgloss.JoinVertical(lipgloss.Left,
+		title,
+		"",
 		content,
 		"",
 		footer,
 	)
 
-	modal := m.styles.Modal.Render(body)
-
-	lines := strings.Split(modal, "\n")
-	if len(lines) > 0 {
-		firstLine := lines[0]
-		titleWidth := lipgloss.Width(title)
-		borderStart := 2
-
-		if len(firstLine) > borderStart+titleWidth {
-			runes := []rune(firstLine)
-			titleRunes := []rune(title)
-			for i, r := range titleRunes {
-				if borderStart+i < len(runes) {
-					runes[borderStart+i] = r
-				}
-			}
-			lines[0] = string(runes)
-		}
-		modal = strings.Join(lines, "\n")
-	}
-
-	return modal
+	return m.styles.Modal.Render(body)
 }
 
 func (m *HelpModal) renderContent() string {
@@ -98,7 +89,7 @@ func (m *HelpModal) renderContent() string {
 		"Staging",
 		"Remote",
 		"Branch",
-		"Other",
+		"Actions",
 		"General",
 	}
 

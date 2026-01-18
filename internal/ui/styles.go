@@ -81,7 +81,9 @@ func NewStyles(theme Theme) *Styles {
 	s.Base = lipgloss.NewStyle().
 		Foreground(lipgloss.Color(theme.Foreground))
 
-	s.Bold = s.Base.Bold(true)
+	s.Bold = s.Base.
+		Background(lipgloss.Color(theme.Background)).
+		Bold(true)
 
 	s.Dim = lipgloss.NewStyle().
 		Foreground(lipgloss.Color(theme.Muted))
@@ -182,18 +184,23 @@ func NewStyles(theme Theme) *Styles {
 
 	// Modal styles
 	s.Modal = lipgloss.NewStyle().
+		Background(lipgloss.Color(theme.Background)).
 		BorderStyle(lipgloss.RoundedBorder()).
 		BorderForeground(lipgloss.Color(theme.Primary)).
+		BorderBackground(lipgloss.Color(theme.Background)).
 		Padding(1, 2)
 
 	s.ModalTitle = lipgloss.NewStyle().
 		Foreground(lipgloss.Color(theme.Primary)).
+		Background(lipgloss.Color(theme.Background)).
 		Bold(true).
 		Padding(0, 1)
 
 	s.ModalBorder = lipgloss.NewStyle().
+		Background(lipgloss.Color(theme.Background)).
 		BorderStyle(lipgloss.RoundedBorder()).
-		BorderForeground(lipgloss.Color(theme.Primary))
+		BorderForeground(lipgloss.Color(theme.Primary)).
+		BorderBackground(lipgloss.Color(theme.Background))
 
 	// Commit graph
 	s.GraphCommit = lipgloss.NewStyle().
@@ -235,10 +242,12 @@ func NewStyles(theme Theme) *Styles {
 	// Help
 	s.HelpKey = lipgloss.NewStyle().
 		Foreground(lipgloss.Color(theme.Primary)).
+		Background(lipgloss.Color(theme.Background)).
 		Bold(true)
 
 	s.HelpDesc = lipgloss.NewStyle().
-		Foreground(lipgloss.Color(theme.Muted))
+		Foreground(lipgloss.Color(theme.Muted)).
+		Background(lipgloss.Color(theme.Background))
 
 	// Spinner
 	s.Spinner = lipgloss.NewStyle().

@@ -33,6 +33,7 @@ type KeyMap struct {
 	DeleteBranch key.Binding
 	DiffMode   key.Binding
 	Worktree   key.Binding
+	ShowCommit key.Binding
 }
 
 func DefaultKeyMap() KeyMap {
@@ -157,6 +158,10 @@ func DefaultKeyMap() KeyMap {
 			key.WithKeys("w"),
 			key.WithHelp("w", "worktree"),
 		),
+		ShowCommit: key.NewBinding(
+			key.WithKeys("enter"),
+			key.WithHelp("enter", "show commit"),
+		),
 	}
 }
 
@@ -171,7 +176,7 @@ func (k KeyMap) FullHelp() [][]key.Binding {
 		{k.Stage, k.Unstage, k.Discard, k.Commit},
 		{k.Push, k.Pull, k.Fetch},
 		{k.Checkout, k.NewBranch, k.DeleteBranch},
-		{k.DiffMode, k.Worktree, k.Refresh},
+		{k.DiffMode, k.ShowCommit, k.Worktree, k.Refresh},
 		{k.Help, k.Quit},
 	}
 }

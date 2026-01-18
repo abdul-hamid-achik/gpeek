@@ -90,54 +90,50 @@ func (m *DiffModal) Update(msg tea.Msg) (Modal, tea.Cmd) {
 }
 
 func (m *DiffModal) View() string {
-	title := m.styles.ModalTitle.Render(" " + m.filename + " ")
+	titleStyle := lipgloss.NewStyle().
+		Foreground(lipgloss.Color(m.styles.Theme.Primary)).
+		Background(lipgloss.Color(m.styles.Theme.Background)).
+		Bold(true).
+		Padding(0, 1)
+
+	title := titleStyle.Render(m.filename)
 
 	modeIndicator := "unified"
 	if m.mode == DiffViewSplit {
 		modeIndicator = "split"
 	}
 
-	header := m.styles.Dim.Render("View: " + modeIndicator + " (v to toggle)")
+	headerStyle := lipgloss.NewStyle().
+		Foreground(lipgloss.Color(m.styles.Theme.Muted)).
+		Background(lipgloss.Color(m.styles.Theme.Background))
+
+	header := headerStyle.Render("View: " + modeIndicator + " (v to toggle)")
 
 	content := m.viewport.View()
 
 	scrollPercent := int(m.viewport.ScrollPercent() * 100)
-	footer := m.styles.Dim.Render(
-		"j/k scroll • g/G top/bottom • q close  " +
-			lipgloss.NewStyle().Foreground(lipgloss.Color("#88C0D0")).Render(
-				strings.Repeat("█", scrollPercent/10)+strings.Repeat("░", 10-scrollPercent/10),
-			),
-	)
+	footerStyle := lipgloss.NewStyle().
+		Foreground(lipgloss.Color(m.styles.Theme.Muted)).
+		Background(lipgloss.Color(m.styles.Theme.Background))
+
+	barStyle := lipgloss.NewStyle().
+		Foreground(lipgloss.Color(m.styles.Theme.Primary)).
+		Background(lipgloss.Color(m.styles.Theme.Background))
+
+	footer := footerStyle.Render("j/k scroll • g/G top/bottom • q close  ") +
+		barStyle.Render(strings.Repeat("█", scrollPercent/10)+strings.Repeat("░", 10-scrollPercent/10))
 
 	body := lipgloss.JoinVertical(lipgloss.Left,
+		title,
 		header,
+		"",
 		content,
+		"",
 		footer,
 	)
 
-	modal := m.styles.Modal.
+	return m.styles.Modal.
 		Width(m.width).
 		Height(m.height).
 		Render(body)
-
-	lines := strings.Split(modal, "\n")
-	if len(lines) > 0 {
-		firstLine := lines[0]
-		titleWidth := lipgloss.Width(title)
-		borderStart := 2
-
-		if len(firstLine) > borderStart+titleWidth {
-			runes := []rune(firstLine)
-			titleRunes := []rune(title)
-			for i, r := range titleRunes {
-				if borderStart+i < len(runes) {
-					runes[borderStart+i] = r
-				}
-			}
-			lines[0] = string(runes)
-		}
-		modal = strings.Join(lines, "\n")
-	}
-
-	return modal
 }

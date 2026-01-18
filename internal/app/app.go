@@ -224,7 +224,7 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				return refreshMsg{}
 			})
 
-		case key.Matches(msg, m.keys.Checkout):
+		case key.Matches(msg, m.keys.Checkout), key.Matches(msg, m.keys.ShowCommit):
 			if m.focused == ui.PanelBranches {
 				if branch := m.branchesPanel.SelectedBranch(); branch != nil {
 					if err := m.repo.Checkout(branch.Name); err != nil {
@@ -232,6 +232,15 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 					} else {
 						cmds = append(cmds, m.refreshBranches(), m.refreshStatus(), m.refreshCommits())
 					}
+				}
+			} else if m.focused == ui.PanelCommits {
+				if commit := m.commitsPanel.SelectedCommit(); commit != nil {
+					diff, _ := m.repo.CommitDiff(commit.Hash)
+					title := commit.Hash[:7] + " - " + commit.Message
+					if len(title) > 60 {
+						title = title[:57] + "..."
+					}
+					m.activeModal = modals.NewDiffModal(m.styles, title, diff, m.width-4, m.height-4)
 				}
 			}
 
@@ -403,40 +412,14 @@ func (m *Model) renderStatusBar() string {
 }
 
 func (m *Model) overlayModal(base, modal string) string {
-	baseLines := splitLines(base)
-	modalLines := splitLines(modal)
-
-	modalWidth := maxLineWidth(modalLines)
-	modalHeight := len(modalLines)
-
-	startX := (m.width - modalWidth) / 2
-	startY := (m.height - modalHeight) / 2
-
-	if startX < 0 {
-		startX = 0
-	}
-	if startY < 0 {
-		startY = 0
-	}
-
-	for i, line := range modalLines {
-		y := startY + i
-		if y < len(baseLines) {
-			baseLine := baseLines[y]
-			baseRunes := []rune(baseLine)
-			lineRunes := []rune(line)
-
-			for j, r := range lineRunes {
-				x := startX + j
-				if x < len(baseRunes) {
-					baseRunes[x] = r
-				}
-			}
-			baseLines[y] = string(baseRunes)
-		}
-	}
-
-	return joinLines(baseLines)
+	return lipgloss.Place(
+		m.width,
+		m.height,
+		lipgloss.Center,
+		lipgloss.Center,
+		modal,
+		lipgloss.WithWhitespaceBackground(lipgloss.Color(m.styles.Theme.Background)),
+	)
 }
 
 func (m *Model) cycleFocus(forward bool) {
@@ -543,38 +526,3 @@ func (m *Model) setStatus(msg string, isError bool) {
 	m.statusTime = time.Now()
 }
 
-func splitLines(s string) []string {
-	var lines []string
-	start := 0
-	for i := 0; i < len(s); i++ {
-		if s[i] == '\n' {
-			lines = append(lines, s[start:i])
-			start = i + 1
-		}
-	}
-	if start < len(s) {
-		lines = append(lines, s[start:])
-	}
-	return lines
-}
-
-func joinLines(lines []string) string {
-	result := ""
-	for i, line := range lines {
-		if i > 0 {
-			result += "\n"
-		}
-		result += line
-	}
-	return result
-}
-
-func maxLineWidth(lines []string) int {
-	max := 0
-	for _, line := range lines {
-		if w := lipgloss.Width(line); w > max {
-			max = w
-		}
-	}
-	return max
-}
