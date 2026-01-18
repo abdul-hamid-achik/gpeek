@@ -1,0 +1,76 @@
+version: '3'
+
+vars:
+  BINARY_NAME: gpeek
+  BINARY_DIR: bin
+  MAIN_PKG: ./cmd/gpeek
+
+tasks:
+  default:
+    desc: Build the application
+    cmds:
+      - task: build
+
+  build:
+    desc: Build the binary
+    cmds:
+      - go build -o {{.BINARY_DIR}}/{{.BINARY_NAME}} {{.MAIN_PKG}}
+    sources:
+      - "**/*.go"
+    generates:
+      - "{{.BINARY_DIR}}/{{.BINARY_NAME}}"
+
+  run:
+    desc: Run the application
+    cmds:
+      - go run {{.MAIN_PKG}}
+
+  test:
+    desc: Run all tests
+    cmds:
+      - go test -v ./...
+
+  test:cover:
+    desc: Run tests with coverage
+    cmds:
+      - go test -coverprofile=coverage.out ./...
+      - go tool cover -html=coverage.out -o coverage.html
+
+  lint:
+    desc: Run linter
+    cmds:
+      - golangci-lint run ./...
+
+  fmt:
+    desc: Format code
+    cmds:
+      - go fmt ./...
+
+  tidy:
+    desc: Tidy dependencies
+    cmds:
+      - go mod tidy
+
+  clean:
+    desc: Clean build artifacts
+    cmds:
+      - rm -rf {{.BINARY_DIR}}
+      - rm -f coverage.out coverage.html
+
+  install:
+    desc: Install the binary
+    cmds:
+      - go install {{.MAIN_PKG}}
+
+  dev:
+    desc: Run with hot reload (requires air)
+    cmds:
+      - air -c .air.toml
+
+  all:
+    desc: Format, lint, test, and build
+    cmds:
+      - task: fmt
+      - task: lint
+      - task: test
+      - task: build

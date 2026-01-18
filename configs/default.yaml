@@ -1,0 +1,48 @@
+theme: nord
+
+ui:
+  show_icons: true
+  date_format: "2006-01-02 15:04"
+  relative_dates: true
+  confirm_destructive: true
+  show_hidden_files: false
+
+keys:
+  quit: ["q", "ctrl+c"]
+  help: ["?"]
+  refresh: ["ctrl+r"]
+  focus_next: ["tab"]
+  focus_prev: ["shift+tab"]
+  focus_files: ["1"]
+  focus_branches: ["2"]
+  focus_commits: ["3"]
+  focus_preview: ["4"]
+  up: ["k", "up"]
+  down: ["j", "down"]
+  page_up: ["ctrl+u"]
+  page_down: ["ctrl+d"]
+  top: ["g"]
+  bottom: ["G"]
+  select: ["space"]
+  confirm: ["enter"]
+  cancel: ["esc"]
+  stage: ["s"]
+  unstage: ["u"]
+  discard: ["x"]
+  commit: ["c"]
+  push: ["P"]
+  pull: ["p"]
+  fetch: ["f"]
+  checkout: ["enter"]
+  new_branch: ["n"]
+  delete_branch: ["d"]
+  diff_mode: ["v"]
+  worktree: ["w"]
+
+git:
+  auto_fetch: false
+  auto_fetch_interval: 300
+  sign_commits: false
+
+github:
+  enabled: true

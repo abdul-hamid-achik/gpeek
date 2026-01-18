@@ -1,0 +1,89 @@
+version: 2
+
+project_name: gpeek
+
+before:
+  hooks:
+    - go mod tidy
+
+builds:
+  - id: gpeek
+    main: ./cmd/gpeek
+    binary: gpeek
+    env:
+      - CGO_ENABLED=0
+    goos:
+      - linux
+      - darwin
+      - windows
+    goarch:
+      - amd64
+      - arm64
+    ldflags:
+      - -s -w
+
+archives:
+  - id: default
+    formats:
+      - tar.gz
+    format_overrides:
+      - goos: windows
+        formats:
+          - zip
+    name_template: "{{ .ProjectName }}_{{ .Version }}_{{ .Os }}_{{ .Arch }}"
+    files:
+      - README.md
+      - configs/default.yaml
+      - themes/*.yaml
+
+checksum:
+  name_template: 'checksums.txt'
+
+snapshot:
+  version_template: "{{ incpatch .Version }}-next"
+
+changelog:
+  sort: asc
+  filters:
+    exclude:
+      - '^docs:'
+      - '^test:'
+      - '^chore:'
+
+brews:
+  - name: gpeek
+    repository:
+      owner: abdul-hamid-achik
+      name: homebrew-tap
+      token: "{{ .Env.HOMEBREW_TAP_TOKEN }}"
+    directory: Formula
+    homepage: "https://github.com/abdul-hamid-achik/gpeek"
+    description: "TUI for code review, git visualization, and repository management"
+    license: "MIT"
+    install: |
+      bin.install "gpeek"
+    test: |
+      system "#{bin}/gpeek", "--help"
+    skip_upload: "{{ if .Env.HOMEBREW_TAP_TOKEN }}false{{ else }}true{{ end }}"
+
+nfpms:
+  - id: packages
+    package_name: gpeek
+    vendor: Abdul Hamid Achik
+    homepage: https://github.com/abdul-hamid-achik/gpeek
+    maintainer: Abdul Hamid Achik <abdul.achik@gmail.com>
+    description: "TUI for code review, git visualization, and repository management"
+    license: MIT
+    formats:
+      - deb
+      - rpm
+      - apk
+    bindir: /usr/bin
+
+release:
+  github:
+    owner: abdul-hamid-achik
+    name: gpeek
+  draft: false
+  prerelease: auto
+  name_template: "v{{.Version}}"
