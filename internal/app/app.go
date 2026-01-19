@@ -8,6 +8,7 @@ import (
 	"github.com/abdul-hamid-achik/gpeek/internal/ui"
 	"github.com/abdul-hamid-achik/gpeek/internal/ui/modals"
 	"github.com/abdul-hamid-achik/gpeek/internal/ui/panels"
+	uisearch "github.com/abdul-hamid-achik/gpeek/internal/ui/search"
 	"github.com/charmbracelet/bubbles/key"
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
@@ -31,11 +32,16 @@ type Model struct {
 	previewPanel  *panels.PreviewPanel
 
 	activeModal modals.Modal
+	searchModal *uisearch.SearchModal
 
 	statusMessage   string
 	statusError     bool
 	statusTime      time.Time
 	operationStatus string
+
+	// Cached data for search
+	cachedBranches []git.Branch
+	cachedCommits  []git.Commit
 }
 
 type statusClearMsg struct{}
@@ -118,6 +124,18 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.previewPanel.SetSize(previewDim.InnerWidth, previewDim.InnerHeight)
 
 	case tea.KeyMsg:
+		// Handle search modal first (it's separate from activeModal)
+		if m.searchModal != nil {
+			result, cmd := m.searchModal.Update(msg)
+			if result == nil {
+				m.searchModal = nil
+			}
+			if cmd != nil {
+				cmds = append(cmds, cmd)
+			}
+			return m, tea.Batch(cmds...)
+		}
+
 		if m.activeModal != nil {
 			newModal, cmd := m.activeModal.Update(msg)
 			if newModal == nil {
@@ -372,6 +390,43 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			worktrees, _ := m.repo.ListWorktrees()
 			m.activeModal = modals.NewWorktreeModal(m.styles, worktrees, m.repo)
 
+		case key.Matches(msg, m.keys.GlobalSearch):
+			// Open global search modal
+			worktrees, _ := m.repo.ListWorktrees()
+			m.searchModal = uisearch.NewSearchModal(
+				m.styles,
+				m.cachedBranches,
+				m.cachedCommits,
+				worktrees,
+				m.repo.CurrentBranch(),
+				m.width-8,
+				m.height-8,
+			)
+			m.searchModal.SetCallbacks(
+				func(branch *git.Branch) tea.Cmd {
+					return func() tea.Msg {
+						if err := m.repo.Checkout(branch.Name); err != nil {
+							return operationDoneMsg{err: err}
+						}
+						return operationDoneMsg{success: "Switched to " + branch.Name}
+					}
+				},
+				func(commit *git.Commit) tea.Cmd {
+					// Show commit diff
+					diff, _ := m.repo.CommitDiff(commit.Hash)
+					title := commit.Hash[:7] + " - " + commit.Message
+					m.activeModal = modals.NewDiffModal(m.styles, title, diff, m.width-4, m.height-4)
+					return nil
+				},
+				nil, // No worktree action for now
+			)
+			return m, nil
+
+		case key.Matches(msg, m.keys.GitConfig):
+			// Open git config modal
+			m.activeModal = modals.NewGitConfigModal(m.styles, m.repo, m.width-8, m.height-8)
+			return m, nil
+
 		default:
 			cmd := m.updateFocusedPanel(msg)
 			if cmd != nil {
@@ -392,6 +447,7 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			m.setStatus(msg.err.Error(), true)
 		} else {
 			m.branchesPanel.SetBranches(msg.branches, msg.current)
+			m.cachedBranches = msg.branches // Cache for search
 		}
 
 	case gitCommitsMsg:
@@ -399,6 +455,7 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			m.setStatus(msg.err.Error(), true)
 		} else {
 			m.commitsPanel.SetCommits(msg.commits)
+			m.cachedCommits = msg.commits // Cache for search
 		}
 
 	case gitDiffMsg:
@@ -498,6 +555,11 @@ func (m *Model) View() string {
 
 	if m.activeModal != nil {
 		modalView := m.activeModal.View()
+		view = m.overlayModal(view, modalView)
+	}
+
+	if m.searchModal != nil {
+		modalView := m.searchModal.View()
 		view = m.overlayModal(view, modalView)
 	}
 

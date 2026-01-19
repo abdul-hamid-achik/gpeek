@@ -8,11 +8,12 @@ import (
 )
 
 type Config struct {
-	Theme  string   `yaml:"theme"`
-	UI     UIConfig `yaml:"ui"`
-	Keys   KeyConfig `yaml:"keys"`
-	Git    GitConfig `yaml:"git"`
+	Theme  string       `yaml:"theme"`
+	UI     UIConfig     `yaml:"ui"`
+	Keys   KeyConfig    `yaml:"keys"`
+	Git    GitConfig    `yaml:"git"`
 	GitHub GitHubConfig `yaml:"github"`
+	Search SearchConfig `yaml:"search"`
 }
 
 type UIConfig struct {
@@ -66,6 +67,15 @@ type GitHubConfig struct {
 	Enabled bool `yaml:"enabled"`
 }
 
+type SearchConfig struct {
+	DefaultMode      string `yaml:"default_mode"`      // "fuzzy", "exact", "regex"
+	CaseSensitive    bool   `yaml:"case_sensitive"`
+	SmartCase        bool   `yaml:"smart_case"`        // Auto case-sensitive if uppercase
+	MaxResults       int    `yaml:"max_results"`       // Default: 100
+	DebounceMs       int    `yaml:"debounce_ms"`       // Default: 150
+	HighlightMatches bool   `yaml:"highlight_matches"`
+}
+
 func Default() *Config {
 	return &Config{
 		Theme: "nord",
@@ -115,6 +125,14 @@ func Default() *Config {
 		},
 		GitHub: GitHubConfig{
 			Enabled: true,
+		},
+		Search: SearchConfig{
+			DefaultMode:      "fuzzy",
+			CaseSensitive:    false,
+			SmartCase:        true,
+			MaxResults:       100,
+			DebounceMs:       150,
+			HighlightMatches: true,
 		},
 	}
 }

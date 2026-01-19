@@ -6,6 +6,7 @@ import (
 
 	"github.com/abdul-hamid-achik/gpeek/internal/diff"
 	"github.com/abdul-hamid-achik/gpeek/internal/ui"
+	uisearch "github.com/abdul-hamid-achik/gpeek/internal/ui/search"
 	"github.com/charmbracelet/bubbles/viewport"
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
@@ -15,12 +16,15 @@ type DiffModal struct {
 	BaseModal
 	styles      *ui.Styles
 	viewport    viewport.Model
-	commitInfo  string           // Commit hash + message for title
-	rawDiff     string           // Keep for reference
-	parsedDiff  *diff.Diff       // Parsed once at creation
-	expanded    map[int]bool     // File index → expanded state
-	allExpanded bool             // Toggle all state
-	focusedFile int              // Currently focused file index
+	commitInfo  string       // Commit hash + message for title
+	rawDiff     string       // Keep for reference
+	parsedDiff  *diff.Diff   // Parsed once at creation
+	expanded    map[int]bool // File index → expanded state
+	allExpanded bool         // Toggle all state
+	focusedFile int          // Currently focused file index
+
+	// Diff search
+	diffSearch *uisearch.DiffSearch
 }
 
 func NewDiffModal(styles *ui.Styles, title, diffContent string, width, height int) *DiffModal {
@@ -44,9 +48,11 @@ func NewDiffModal(styles *ui.Styles, title, diffContent string, width, height in
 		expanded:    expanded,
 		allExpanded: true,
 		focusedFile: 0,
+		diffSearch:  uisearch.NewDiffSearch(styles),
 	}
 	m.width = width
 	m.height = height
+	m.diffSearch.SetWidth(width - 4)
 
 	m.renderContent()
 	return m
@@ -114,7 +120,9 @@ func (m *DiffModal) renderContent() {
 		}
 	}
 
-	m.viewport.SetContent(content.String())
+	contentStr := content.String()
+	m.viewport.SetContent(contentStr)
+	m.diffSearch.SetContent(contentStr)
 }
 
 func (m *DiffModal) countFileChanges(file diff.FileDiff) (adds, dels int) {
@@ -175,11 +183,43 @@ func (m *DiffModal) scrollToFocusedFile() {
 }
 
 func (m *DiffModal) Update(msg tea.Msg) (Modal, tea.Cmd) {
+	// Handle diff search if active
+	if m.diffSearch.IsActive() {
+		searchCmd, scrollTo := m.diffSearch.Update(msg)
+		if scrollTo >= 0 {
+			m.viewport.SetYOffset(scrollTo)
+		}
+		return m, searchCmd
+	}
+
 	switch msg := msg.(type) {
 	case tea.KeyMsg:
 		switch msg.String() {
 		case "q", "esc":
+			if m.diffSearch.HasSearch() {
+				m.diffSearch.Deactivate()
+				return m, nil
+			}
 			return nil, nil
+		case "/":
+			m.diffSearch.Activate()
+			return m, nil
+		case "n":
+			if m.diffSearch.HasSearch() {
+				scrollTo := m.diffSearch.NextMatch()
+				if scrollTo >= 0 {
+					m.viewport.SetYOffset(scrollTo)
+				}
+				return m, nil
+			}
+		case "N":
+			if m.diffSearch.HasSearch() {
+				scrollTo := m.diffSearch.PrevMatch()
+				if scrollTo >= 0 {
+					m.viewport.SetYOffset(scrollTo)
+				}
+				return m, nil
+			}
 		case "enter", " ":
 			// Toggle focused file expansion
 			if len(m.parsedDiff.Files) > 0 {
@@ -277,16 +317,35 @@ func (m *DiffModal) View() string {
 	scrollbar := filledStyle.Render(strings.Repeat("█", scrollPercent/10)) +
 		trackStyle.Render(strings.Repeat("░", 10-scrollPercent/10))
 
-	footer := footerStyle.Render("j/k nav • enter toggle • a toggle all • q close  ") + scrollbar
+	footer := footerStyle.Render("j/k nav • enter toggle • a toggle all • / search • q close  ") + scrollbar
 
-	body := lipgloss.JoinVertical(lipgloss.Left,
-		title,
-		header,
-		"",
-		content,
-		"",
-		footer,
-	)
+	// Add search bar if active
+	var searchBar string
+	if m.diffSearch.IsActive() || m.diffSearch.HasSearch() {
+		searchBar = m.diffSearch.View()
+	}
+
+	var body string
+	if searchBar != "" {
+		body = lipgloss.JoinVertical(lipgloss.Left,
+			title,
+			header,
+			"",
+			content,
+			"",
+			searchBar,
+			footer,
+		)
+	} else {
+		body = lipgloss.JoinVertical(lipgloss.Left,
+			title,
+			header,
+			"",
+			content,
+			"",
+			footer,
+		)
+	}
 
 	return m.styles.Modal.
 		Width(m.width).

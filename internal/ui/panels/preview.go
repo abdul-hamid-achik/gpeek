@@ -6,6 +6,7 @@ import (
 
 	"github.com/abdul-hamid-achik/gpeek/internal/diff"
 	"github.com/abdul-hamid-achik/gpeek/internal/ui"
+	uisearch "github.com/abdul-hamid-achik/gpeek/internal/ui/search"
 	"github.com/charmbracelet/bubbles/viewport"
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
@@ -25,13 +26,17 @@ type PreviewPanel struct {
 	expanded    map[int]bool // File index → expanded state
 	allExpanded bool         // Toggle all state
 	focusedFile int          // Currently focused file index
+
+	// Diff search
+	diffSearch *uisearch.DiffSearch
 }
 
 func NewPreviewPanel(styles *ui.Styles) *PreviewPanel {
 	vp := viewport.New(0, 0)
 	return &PreviewPanel{
-		styles:   styles,
-		viewport: vp,
+		styles:     styles,
+		viewport:   vp,
+		diffSearch: uisearch.NewDiffSearch(styles),
 	}
 }
 
@@ -43,6 +48,7 @@ func (p *PreviewPanel) SetContent(content string) {
 	p.expanded = nil
 	p.viewport.SetContent(content)
 	p.viewport.GotoTop()
+	p.diffSearch.SetContent(content)
 }
 
 func (p *PreviewPanel) SetDiff(diffContent string) {
@@ -62,6 +68,7 @@ func (p *PreviewPanel) SetDiff(diffContent string) {
 
 	p.renderContent()
 	p.viewport.GotoTop()
+	p.diffSearch.SetContent(p.content)
 }
 
 func (p *PreviewPanel) renderContent() {
@@ -188,6 +195,18 @@ func (p *PreviewPanel) scrollToFocusedFile() {
 	p.viewport.SetYOffset(lineNum)
 }
 
+func (p *PreviewPanel) SetSize(width, height int) {
+	p.BasePanel.SetSize(width, height)
+	p.viewport.Width = width
+	p.viewport.Height = height
+	p.diffSearch.SetWidth(width)
+
+	// Re-render content when size changes (for diff content)
+	if p.rawDiff != "" && p.highlighted && p.parsedDiff != nil {
+		p.renderContent()
+	}
+}
+
 func (p *PreviewPanel) Update(msg tea.Msg) tea.Cmd {
 	if !p.focused {
 		return nil
@@ -195,9 +214,42 @@ func (p *PreviewPanel) Update(msg tea.Msg) tea.Cmd {
 
 	var cmd tea.Cmd
 
+	// Handle diff search if active
+	if p.diffSearch.IsActive() {
+		searchCmd, scrollTo := p.diffSearch.Update(msg)
+		if scrollTo >= 0 {
+			p.viewport.SetYOffset(scrollTo)
+		}
+		return searchCmd
+	}
+
 	switch msg := msg.(type) {
 	case tea.KeyMsg:
 		switch msg.String() {
+		case "/":
+			p.diffSearch.Activate()
+			return nil
+		case "n":
+			if p.diffSearch.HasSearch() {
+				scrollTo := p.diffSearch.NextMatch()
+				if scrollTo >= 0 {
+					p.viewport.SetYOffset(scrollTo)
+				}
+				return nil
+			}
+		case "N":
+			if p.diffSearch.HasSearch() {
+				scrollTo := p.diffSearch.PrevMatch()
+				if scrollTo >= 0 {
+					p.viewport.SetYOffset(scrollTo)
+				}
+				return nil
+			}
+		case "esc":
+			if p.diffSearch.HasSearch() {
+				p.diffSearch.Deactivate()
+				return nil
+			}
 		case "enter", " ":
 			// Toggle focused file expansion
 			if p.parsedDiff != nil && len(p.parsedDiff.Files) > 0 {
@@ -266,30 +318,37 @@ func (p *PreviewPanel) View() string {
 		return p.styles.Dim.Render("Select a file or commit to preview")
 	}
 
+	// Calculate content height (reserve space for search bar if active)
+	contentHeight := p.height
+	if p.diffSearch.IsActive() || p.diffSearch.HasSearch() {
+		contentHeight--
+	}
+
 	content := p.viewport.View()
 
 	lines := strings.Split(content, "\n")
-	for len(lines) < p.height {
+	for len(lines) < contentHeight {
 		lines = append(lines, "")
 	}
-	if len(lines) > p.height {
-		lines = lines[:p.height]
+	if len(lines) > contentHeight {
+		lines = lines[:contentHeight]
 	}
 
-	return strings.Join(lines, "\n")
-}
+	result := strings.Join(lines, "\n")
 
-func (p *PreviewPanel) SetSize(width, height int) {
-	p.BasePanel.SetSize(width, height)
-	p.viewport.Width = width
-	p.viewport.Height = height
-
-	// Re-render content when size changes (for diff content)
-	if p.rawDiff != "" && p.highlighted && p.parsedDiff != nil {
-		p.renderContent()
+	// Add search bar if active
+	if p.diffSearch.IsActive() || p.diffSearch.HasSearch() {
+		result += "\n" + p.diffSearch.View()
 	}
+
+	return result
 }
 
 func (p *PreviewPanel) ScrollPercent() float64 {
 	return p.viewport.ScrollPercent()
+}
+
+// IsSearching returns true if diff search is active
+func (p *PreviewPanel) IsSearching() bool {
+	return p.diffSearch.IsActive()
 }

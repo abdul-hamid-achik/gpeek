@@ -6,7 +6,9 @@ import (
 	"time"
 
 	"github.com/abdul-hamid-achik/gpeek/internal/git"
+	"github.com/abdul-hamid-achik/gpeek/internal/search"
 	"github.com/abdul-hamid-achik/gpeek/internal/ui"
+	uisearch "github.com/abdul-hamid-achik/gpeek/internal/ui/search"
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
 )
@@ -15,22 +17,55 @@ type CommitsPanel struct {
 	BasePanel
 	styles *ui.Styles
 
-	commits []git.Commit
-	cursor  int
-	offset  int
+	allCommits      []git.Commit
+	filteredCommits []git.Commit
+	cursor          int
+	offset          int
+
+	// Filter support
+	filterBar *uisearch.FilterBar
 }
 
 func NewCommitsPanel(styles *ui.Styles) *CommitsPanel {
 	return &CommitsPanel{
-		styles: styles,
+		styles:    styles,
+		filterBar: uisearch.NewFilterBar(styles),
 	}
 }
 
 func (p *CommitsPanel) SetCommits(commits []git.Commit) {
-	p.commits = commits
-	if p.cursor >= len(commits) && len(commits) > 0 {
-		p.cursor = len(commits) - 1
+	p.allCommits = commits
+	p.applyFilter()
+}
+
+func (p *CommitsPanel) applyFilter() {
+	query := p.filterBar.GetQuery()
+
+	if query.Text == "" {
+		p.filteredCommits = p.allCommits
+	} else {
+		// Filter by message or author
+		p.filteredCommits = search.Filter(p.allCommits, query, func(c git.Commit) string {
+			return c.Message + " " + c.Author
+		})
 	}
+
+	// Update filter bar counts
+	p.filterBar.SetCounts(len(p.filteredCommits), len(p.allCommits))
+
+	// Adjust cursor if needed
+	if p.cursor >= len(p.filteredCommits) && len(p.filteredCommits) > 0 {
+		p.cursor = len(p.filteredCommits) - 1
+	}
+	if len(p.filteredCommits) == 0 {
+		p.cursor = 0
+	}
+	p.adjustOffset()
+}
+
+func (p *CommitsPanel) SetSize(width, height int) {
+	p.BasePanel.SetSize(width, height)
+	p.filterBar.SetWidth(width)
 }
 
 func (p *CommitsPanel) Update(msg tea.Msg) tea.Cmd {
@@ -38,9 +73,25 @@ func (p *CommitsPanel) Update(msg tea.Msg) tea.Cmd {
 		return nil
 	}
 
+	// If filter bar is active, handle its input first
+	if p.filterBar.IsActive() {
+		cmd := p.filterBar.Update(msg)
+		p.applyFilter()
+		return cmd
+	}
+
 	switch msg := msg.(type) {
 	case tea.KeyMsg:
 		switch msg.String() {
+		case "/":
+			p.filterBar.Activate()
+			return nil
+		case "esc":
+			if p.filterBar.HasFilter() {
+				p.filterBar.Deactivate()
+				p.applyFilter()
+				return nil
+			}
 		case "j", "down":
 			p.moveDown()
 		case "k", "up":
@@ -49,8 +100,8 @@ func (p *CommitsPanel) Update(msg tea.Msg) tea.Cmd {
 			p.cursor = 0
 			p.offset = 0
 		case "G":
-			if len(p.commits) > 0 {
-				p.cursor = len(p.commits) - 1
+			if len(p.filteredCommits) > 0 {
+				p.cursor = len(p.filteredCommits) - 1
 				p.adjustOffset()
 			}
 		case "ctrl+d":
@@ -68,24 +119,47 @@ func (p *CommitsPanel) Update(msg tea.Msg) tea.Cmd {
 }
 
 func (p *CommitsPanel) View() string {
-	if len(p.commits) == 0 {
+	commits := p.filteredCommits
+
+	if len(commits) == 0 && len(p.allCommits) == 0 {
 		return p.styles.Dim.Render("No commits\n\nMake your first commit with (c)")
+	}
+
+	if len(commits) == 0 && p.filterBar.HasFilter() {
+		content := p.styles.Dim.Render("No matching commits")
+		if p.filterBar.IsActive() || p.filterBar.HasFilter() {
+			content += "\n" + p.filterBar.View()
+		}
+		return content
+	}
+
+	// Calculate available height for commits (reserve space for filter bar)
+	contentHeight := p.height
+	if p.filterBar.IsActive() || p.filterBar.HasFilter() {
+		contentHeight -= p.filterBar.FilterHeight()
 	}
 
 	var lines []string
 
-	end := p.offset + p.height
-	if end > len(p.commits) {
-		end = len(p.commits)
+	end := p.offset + contentHeight
+	if end > len(commits) {
+		end = len(commits)
 	}
 
 	for i := p.offset; i < end; i++ {
-		c := p.commits[i]
+		c := commits[i]
 		line := p.renderCommit(c, i == p.cursor)
 		lines = append(lines, line)
 	}
 
-	return strings.Join(lines, "\n")
+	content := strings.Join(lines, "\n")
+
+	// Add filter bar at bottom if active
+	if p.filterBar.IsActive() || p.filterBar.HasFilter() {
+		content += "\n" + p.filterBar.View()
+	}
+
+	return content
 }
 
 func (p *CommitsPanel) renderCommit(c git.Commit, selected bool) string {
@@ -169,7 +243,7 @@ func (p *CommitsPanel) formatTime(t time.Time) string {
 }
 
 func (p *CommitsPanel) moveDown() {
-	if p.cursor < len(p.commits)-1 {
+	if p.cursor < len(p.filteredCommits)-1 {
 		p.cursor++
 		p.adjustOffset()
 	}
@@ -183,20 +257,37 @@ func (p *CommitsPanel) moveUp() {
 }
 
 func (p *CommitsPanel) adjustOffset() {
+	// Account for filter bar height
+	contentHeight := p.height
+	if p.filterBar.IsActive() || p.filterBar.HasFilter() {
+		contentHeight -= p.filterBar.FilterHeight()
+	}
+
 	if p.cursor < p.offset {
 		p.offset = p.cursor
 	}
-	if p.cursor >= p.offset+p.height {
-		p.offset = p.cursor - p.height + 1
+	if p.cursor >= p.offset+contentHeight {
+		p.offset = p.cursor - contentHeight + 1
 	}
 }
 
 func (p *CommitsPanel) SelectedCommit() *git.Commit {
-	if len(p.commits) == 0 {
+	if len(p.filteredCommits) == 0 {
 		return nil
 	}
-	if p.cursor < len(p.commits) {
-		return &p.commits[p.cursor]
+	if p.cursor < len(p.filteredCommits) {
+		return &p.filteredCommits[p.cursor]
 	}
 	return nil
+}
+
+// IsFiltering returns true if the filter bar is active
+func (p *CommitsPanel) IsFiltering() bool {
+	return p.filterBar.IsActive()
+}
+
+// ClearFilter clears the current filter
+func (p *CommitsPanel) ClearFilter() {
+	p.filterBar.Deactivate()
+	p.applyFilter()
 }

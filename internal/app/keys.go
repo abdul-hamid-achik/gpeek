@@ -34,6 +34,12 @@ type KeyMap struct {
 	DiffMode   key.Binding
 	Worktree   key.Binding
 	ShowCommit key.Binding
+	// Search bindings
+	FilterPanel  key.Binding
+	GlobalSearch key.Binding
+	SearchNext   key.Binding
+	SearchPrev   key.Binding
+	GitConfig    key.Binding
 }
 
 func DefaultKeyMap() KeyMap {
@@ -162,6 +168,26 @@ func DefaultKeyMap() KeyMap {
 			key.WithKeys("enter"),
 			key.WithHelp("enter", "show commit"),
 		),
+		FilterPanel: key.NewBinding(
+			key.WithKeys("/"),
+			key.WithHelp("/", "filter"),
+		),
+		GlobalSearch: key.NewBinding(
+			key.WithKeys("ctrl+p"),
+			key.WithHelp("ctrl+p", "search"),
+		),
+		SearchNext: key.NewBinding(
+			key.WithKeys("n"),
+			key.WithHelp("n", "next match"),
+		),
+		SearchPrev: key.NewBinding(
+			key.WithKeys("N"),
+			key.WithHelp("N", "prev match"),
+		),
+		GitConfig: key.NewBinding(
+			key.WithKeys("C"),
+			key.WithHelp("C", "git config"),
+		),
 	}
 }
 
@@ -177,6 +203,7 @@ func (k KeyMap) FullHelp() [][]key.Binding {
 		{k.Push, k.Pull, k.Fetch},
 		{k.Checkout, k.NewBranch, k.DeleteBranch},
 		{k.DiffMode, k.ShowCommit, k.Worktree, k.Refresh},
-		{k.Help, k.Quit},
+		{k.FilterPanel, k.GlobalSearch, k.SearchNext, k.SearchPrev},
+		{k.GitConfig, k.Help, k.Quit},
 	}
 }
