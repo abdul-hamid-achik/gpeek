@@ -65,13 +65,13 @@ func (p *PreviewPanel) SetDiff(diffContent string) {
 	// Parse diff once
 	p.parsedDiff = diff.Parse(diffContent)
 
-	// Initialize all files as expanded
+	// Initialize all files as collapsed
 	p.expanded = make(map[int]bool)
 	p.fileScrollOffset = make(map[int]int)
 	for i := range p.parsedDiff.Files {
-		p.expanded[i] = true
+		p.expanded[i] = false
 	}
-	p.allExpanded = true
+	p.allExpanded = false
 	p.focusedFile = 0
 
 	p.renderContent()
@@ -263,6 +263,56 @@ func (p *PreviewPanel) countFileLines(file diff.FileDiff) int {
 	return count
 }
 
+// findFirstChangeOffset returns the line index of the first + or - line in a file
+func (p *PreviewPanel) findFirstChangeOffset(file diff.FileDiff) int {
+	lineIdx := 0
+	for _, hunk := range file.Hunks {
+		lineIdx++ // hunk header
+		for _, line := range hunk.Lines {
+			if line.Type == diff.DiffAdd || line.Type == diff.DiffRemove {
+				return lineIdx
+			}
+			lineIdx++
+		}
+	}
+	return 0
+}
+
+// findNextChangeOffset finds the next change line after current offset
+func (p *PreviewPanel) findNextChangeOffset(file diff.FileDiff, currentOffset int) int {
+	lineIdx := 0
+	for _, hunk := range file.Hunks {
+		lineIdx++ // hunk header
+		for _, line := range hunk.Lines {
+			if lineIdx > currentOffset && (line.Type == diff.DiffAdd || line.Type == diff.DiffRemove) {
+				return lineIdx
+			}
+			lineIdx++
+		}
+	}
+	return currentOffset // No more changes
+}
+
+// findPrevChangeOffset finds the previous change line before current offset
+func (p *PreviewPanel) findPrevChangeOffset(file diff.FileDiff, currentOffset int) int {
+	lastChange := 0
+	lineIdx := 0
+	for _, hunk := range file.Hunks {
+		lineIdx++ // hunk header
+		for _, line := range hunk.Lines {
+			if line.Type == diff.DiffAdd || line.Type == diff.DiffRemove {
+				if lineIdx < currentOffset {
+					lastChange = lineIdx
+				} else {
+					return lastChange
+				}
+			}
+			lineIdx++
+		}
+	}
+	return lastChange
+}
+
 // scrollToFocusedFile scrolls the viewport to show the focused file header
 func (p *PreviewPanel) scrollToFocusedFile() {
 	if p.parsedDiff == nil || len(p.parsedDiff.Files) == 0 {
@@ -361,8 +411,12 @@ func (p *PreviewPanel) Update(msg tea.Msg) tea.Cmd {
 			// Toggle focused file expansion
 			if p.parsedDiff != nil && len(p.parsedDiff.Files) > 0 {
 				p.expanded[p.focusedFile] = !p.expanded[p.focusedFile]
-				// Reset scroll offset when collapsing
-				if !p.expanded[p.focusedFile] {
+				if p.expanded[p.focusedFile] {
+					// Auto-scroll to first change when expanding
+					file := p.parsedDiff.Files[p.focusedFile]
+					p.fileScrollOffset[p.focusedFile] = p.findFirstChangeOffset(file)
+				} else {
+					// Reset scroll offset when collapsing
 					p.fileScrollOffset[p.focusedFile] = 0
 				}
 				// Update allExpanded state
@@ -423,6 +477,42 @@ func (p *PreviewPanel) Update(msg tea.Msg) tea.Cmd {
 					p.renderContent()
 					p.scrollToFocusedFile()
 				}
+			}
+		case "]":
+			// Jump to next change line
+			if p.parsedDiff != nil && len(p.parsedDiff.Files) > 0 && p.expanded[p.focusedFile] {
+				file := p.parsedDiff.Files[p.focusedFile]
+				nextOffset := p.findNextChangeOffset(file, p.fileScrollOffset[p.focusedFile])
+				if nextOffset > p.fileScrollOffset[p.focusedFile] {
+					p.fileScrollOffset[p.focusedFile] = nextOffset
+					p.renderContent()
+				}
+			}
+		case "[":
+			// Jump to previous change line
+			if p.parsedDiff != nil && len(p.parsedDiff.Files) > 0 && p.expanded[p.focusedFile] {
+				file := p.parsedDiff.Files[p.focusedFile]
+				prevOffset := p.findPrevChangeOffset(file, p.fileScrollOffset[p.focusedFile])
+				if prevOffset < p.fileScrollOffset[p.focusedFile] {
+					p.fileScrollOffset[p.focusedFile] = prevOffset
+					p.renderContent()
+				}
+			}
+		case "}":
+			// Jump to next file
+			if p.parsedDiff != nil && p.focusedFile < len(p.parsedDiff.Files)-1 {
+				p.focusedFile++
+				p.fileScrollOffset[p.focusedFile] = 0
+				p.renderContent()
+				p.scrollToFocusedFile()
+			}
+		case "{":
+			// Jump to previous file
+			if p.parsedDiff != nil && p.focusedFile > 0 {
+				p.focusedFile--
+				p.fileScrollOffset[p.focusedFile] = 0
+				p.renderContent()
+				p.scrollToFocusedFile()
 			}
 		case "ctrl+j", "J":
 			// Scroll viewport content

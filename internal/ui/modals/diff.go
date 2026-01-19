@@ -38,10 +38,10 @@ func NewDiffModal(styles *ui.Styles, title, diffContent string, width, height in
 	// Parse diff once
 	parsedDiff := diff.Parse(diffContent)
 
-	// Initialize all files as expanded
+	// Initialize all files as collapsed
 	expanded := make(map[int]bool)
 	for i := range parsedDiff.Files {
-		expanded[i] = true
+		expanded[i] = false
 	}
 
 	m := &DiffModal{
@@ -51,7 +51,7 @@ func NewDiffModal(styles *ui.Styles, title, diffContent string, width, height in
 		rawDiff:          diffContent,
 		parsedDiff:       parsedDiff,
 		expanded:         expanded,
-		allExpanded:      true,
+		allExpanded:      false,
 		focusedFile:      0,
 		fileScrollOffset: make(map[int]int),
 		maxLinesPerFile:  20,
@@ -249,6 +249,56 @@ func (m *DiffModal) countFileLines(file diff.FileDiff) int {
 	return count
 }
 
+// findFirstChangeOffset returns the line index of the first + or - line in a file
+func (m *DiffModal) findFirstChangeOffset(file diff.FileDiff) int {
+	lineIdx := 0
+	for _, hunk := range file.Hunks {
+		lineIdx++ // hunk header
+		for _, line := range hunk.Lines {
+			if line.Type == diff.DiffAdd || line.Type == diff.DiffRemove {
+				return lineIdx
+			}
+			lineIdx++
+		}
+	}
+	return 0
+}
+
+// findNextChangeOffset finds the next change line after current offset
+func (m *DiffModal) findNextChangeOffset(file diff.FileDiff, currentOffset int) int {
+	lineIdx := 0
+	for _, hunk := range file.Hunks {
+		lineIdx++ // hunk header
+		for _, line := range hunk.Lines {
+			if lineIdx > currentOffset && (line.Type == diff.DiffAdd || line.Type == diff.DiffRemove) {
+				return lineIdx
+			}
+			lineIdx++
+		}
+	}
+	return currentOffset // No more changes
+}
+
+// findPrevChangeOffset finds the previous change line before current offset
+func (m *DiffModal) findPrevChangeOffset(file diff.FileDiff, currentOffset int) int {
+	lastChange := 0
+	lineIdx := 0
+	for _, hunk := range file.Hunks {
+		lineIdx++ // hunk header
+		for _, line := range hunk.Lines {
+			if line.Type == diff.DiffAdd || line.Type == diff.DiffRemove {
+				if lineIdx < currentOffset {
+					lastChange = lineIdx
+				} else {
+					return lastChange
+				}
+			}
+			lineIdx++
+		}
+	}
+	return lastChange
+}
+
 // scrollToFocusedFile scrolls the viewport to show the focused file header
 func (m *DiffModal) scrollToFocusedFile() {
 	if len(m.parsedDiff.Files) == 0 {
@@ -330,8 +380,12 @@ func (m *DiffModal) Update(msg tea.Msg) (Modal, tea.Cmd) {
 			// Toggle focused file expansion
 			if len(m.parsedDiff.Files) > 0 {
 				m.expanded[m.focusedFile] = !m.expanded[m.focusedFile]
-				// Reset scroll offset when collapsing
-				if !m.expanded[m.focusedFile] {
+				if m.expanded[m.focusedFile] {
+					// Auto-scroll to first change when expanding
+					file := m.parsedDiff.Files[m.focusedFile]
+					m.fileScrollOffset[m.focusedFile] = m.findFirstChangeOffset(file)
+				} else {
+					// Reset scroll offset when collapsing
 					m.fileScrollOffset[m.focusedFile] = 0
 				}
 				// Update allExpanded state
@@ -392,6 +446,42 @@ func (m *DiffModal) Update(msg tea.Msg) (Modal, tea.Cmd) {
 					m.renderContent()
 					m.scrollToFocusedFile()
 				}
+			}
+		case "]":
+			// Jump to next change line
+			if len(m.parsedDiff.Files) > 0 && m.expanded[m.focusedFile] {
+				file := m.parsedDiff.Files[m.focusedFile]
+				nextOffset := m.findNextChangeOffset(file, m.fileScrollOffset[m.focusedFile])
+				if nextOffset > m.fileScrollOffset[m.focusedFile] {
+					m.fileScrollOffset[m.focusedFile] = nextOffset
+					m.renderContent()
+				}
+			}
+		case "[":
+			// Jump to previous change line
+			if len(m.parsedDiff.Files) > 0 && m.expanded[m.focusedFile] {
+				file := m.parsedDiff.Files[m.focusedFile]
+				prevOffset := m.findPrevChangeOffset(file, m.fileScrollOffset[m.focusedFile])
+				if prevOffset < m.fileScrollOffset[m.focusedFile] {
+					m.fileScrollOffset[m.focusedFile] = prevOffset
+					m.renderContent()
+				}
+			}
+		case "}":
+			// Jump to next file
+			if len(m.parsedDiff.Files) > 0 && m.focusedFile < len(m.parsedDiff.Files)-1 {
+				m.focusedFile++
+				m.fileScrollOffset[m.focusedFile] = 0
+				m.renderContent()
+				m.scrollToFocusedFile()
+			}
+		case "{":
+			// Jump to previous file
+			if len(m.parsedDiff.Files) > 0 && m.focusedFile > 0 {
+				m.focusedFile--
+				m.fileScrollOffset[m.focusedFile] = 0
+				m.renderContent()
+				m.scrollToFocusedFile()
 			}
 		case "ctrl+j", "J":
 			// Scroll viewport content
@@ -455,7 +545,7 @@ func (m *DiffModal) View() string {
 	scrollbar := filledStyle.Render(strings.Repeat("█", scrollPercent/10)) +
 		trackStyle.Render(strings.Repeat("░", 10-scrollPercent/10))
 
-	footer := footerStyle.Render("j/k nav • enter toggle • a toggle all • / search • q close  ") + scrollbar
+	footer := footerStyle.Render("j/k scroll • ]/[ changes • {/} files • enter toggle • a all • / search • q close  ") + scrollbar
 
 	// Add search bar if active
 	var searchBar string
