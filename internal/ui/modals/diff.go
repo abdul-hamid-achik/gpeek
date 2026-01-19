@@ -116,12 +116,16 @@ func (m *DiffModal) View() string {
 		Foreground(lipgloss.Color(m.styles.Theme.Muted)).
 		Background(lipgloss.Color(m.styles.Theme.Background))
 
-	barStyle := lipgloss.NewStyle().
-		Foreground(lipgloss.Color(m.styles.Theme.Primary)).
-		Background(lipgloss.Color(m.styles.Theme.Background))
+	filledStyle := lipgloss.NewStyle().
+		Foreground(lipgloss.Color(m.styles.Theme.Primary))
 
-	footer := footerStyle.Render("j/k scroll • g/G top/bottom • q close  ") +
-		barStyle.Render(strings.Repeat("█", scrollPercent/10)+strings.Repeat("░", 10-scrollPercent/10))
+	trackStyle := lipgloss.NewStyle().
+		Foreground(lipgloss.Color(m.styles.Theme.Subtle))
+
+	scrollbar := filledStyle.Render(strings.Repeat("█", scrollPercent/10)) +
+		trackStyle.Render(strings.Repeat("░", 10-scrollPercent/10))
+
+	footer := footerStyle.Render("j/k scroll • g/G top/bottom • q close  ") + scrollbar
 
 	body := lipgloss.JoinVertical(lipgloss.Left,
 		title,

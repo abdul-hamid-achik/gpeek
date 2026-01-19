@@ -331,6 +331,27 @@ func formatPatch(patch *object.Patch) string {
 		buf.WriteString(fmt.Sprintf("--- a/%s\n", fromPath))
 		buf.WriteString(fmt.Sprintf("+++ b/%s\n", toPath))
 
+		// Calculate line counts for hunk header
+		var oldCount, newCount int
+		for _, chunk := range fp.Chunks() {
+			lines := splitLines(chunk.Content())
+			switch chunk.Type() {
+			case diff.Add:
+				newCount += len(lines)
+			case diff.Delete:
+				oldCount += len(lines)
+			case diff.Equal:
+				oldCount += len(lines)
+				newCount += len(lines)
+			}
+		}
+
+		// Write hunk header
+		if oldCount > 0 || newCount > 0 {
+			fmt.Fprintf(&buf, "@@ -%d,%d +%d,%d @@\n", 1, oldCount, 1, newCount)
+		}
+
+		// Write chunk content
 		for _, chunk := range fp.Chunks() {
 			switch chunk.Type() {
 			case diff.Add:
