@@ -25,8 +25,9 @@ type FilesPanel struct {
 	stagedFiles   []FileEntry
 	unstagedFiles []FileEntry
 
-	cursor  int
-	section int
+	cursor   int
+	section  int
+	selected map[string]bool
 }
 
 func NewFilesPanel(styles *ui.Styles) *FilesPanel {
@@ -34,12 +35,14 @@ func NewFilesPanel(styles *ui.Styles) *FilesPanel {
 	return &FilesPanel{
 		styles:   styles,
 		viewport: vp,
+		selected: make(map[string]bool),
 	}
 }
 
 func (p *FilesPanel) SetStatus(status *git.Status) {
 	p.stagedFiles = nil
 	p.unstagedFiles = nil
+	p.selected = make(map[string]bool)
 
 	if status == nil {
 		return
@@ -105,6 +108,14 @@ func (p *FilesPanel) Update(msg tea.Msg) tea.Cmd {
 			for i := 0; i < p.height/2; i++ {
 				p.moveUp()
 			}
+		case " ":
+			if file := p.SelectedFile(); file != nil {
+				if p.selected[file.Path] {
+					delete(p.selected, file.Path)
+				} else {
+					p.selected[file.Path] = true
+				}
+			}
 		}
 	}
 
@@ -113,7 +124,7 @@ func (p *FilesPanel) Update(msg tea.Msg) tea.Cmd {
 
 func (p *FilesPanel) View() string {
 	if len(p.stagedFiles) == 0 && len(p.unstagedFiles) == 0 {
-		return p.styles.Dim.Render("No changes")
+		return p.styles.Dim.Render("No changes\n\nWorking directory is clean")
 	}
 
 	var lines []string
@@ -166,12 +177,22 @@ func (p *FilesPanel) View() string {
 	return content
 }
 
-func (p *FilesPanel) renderFileEntry(f FileEntry, selected bool) string {
+func (p *FilesPanel) renderFileEntry(f FileEntry, cursorOn bool) string {
 	icon := p.statusIcon(f.Status, f.Staged)
 	styleFunc := p.getStatusStyle(f.Status)
 
-	line := fmt.Sprintf(" %s %s", icon, f.Path)
-	if selected && p.focused {
+	prefix := "  "
+	if cursorOn && p.focused {
+		prefix = "> "
+	}
+
+	selectMark := "[ ]"
+	if p.selected[f.Path] {
+		selectMark = "[x]"
+	}
+
+	line := fmt.Sprintf("%s%s %s %s", prefix, selectMark, icon, f.Path)
+	if cursorOn && p.focused {
 		return p.styles.ListItemSelected.Render(line)
 	}
 	return styleFunc(line)
@@ -277,6 +298,29 @@ func (p *FilesPanel) SelectedFile() *FileEntry {
 
 func (p *FilesPanel) StagedFiles() []FileEntry {
 	return p.stagedFiles
+}
+
+func (p *FilesPanel) SelectedFiles() []FileEntry {
+	var files []FileEntry
+	for _, f := range p.stagedFiles {
+		if p.selected[f.Path] {
+			files = append(files, f)
+		}
+	}
+	for _, f := range p.unstagedFiles {
+		if p.selected[f.Path] {
+			files = append(files, f)
+		}
+	}
+	return files
+}
+
+func (p *FilesPanel) HasSelection() bool {
+	return len(p.selected) > 0
+}
+
+func (p *FilesPanel) ClearSelection() {
+	p.selected = make(map[string]bool)
 }
 
 func (p *FilesPanel) SetSize(width, height int) {

@@ -100,7 +100,7 @@ func DefaultKeyMap() KeyMap {
 		),
 		Select: key.NewBinding(
 			key.WithKeys(" "),
-			key.WithHelp("space", "select"),
+			key.WithHelp("space", "toggle select"),
 		),
 		Confirm: key.NewBinding(
 			key.WithKeys("enter"),

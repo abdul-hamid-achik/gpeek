@@ -1,6 +1,7 @@
 package app
 
 import (
+	"fmt"
 	"time"
 
 	"github.com/abdul-hamid-achik/gpeek/internal/git"
@@ -31,13 +32,18 @@ type Model struct {
 
 	activeModal modals.Modal
 
-	statusMessage string
-	statusError   bool
-	statusTime    time.Time
+	statusMessage   string
+	statusError     bool
+	statusTime      time.Time
+	operationStatus string
 }
 
 type statusClearMsg struct{}
 type refreshMsg struct{}
+type operationDoneMsg struct {
+	success string
+	err     error
+}
 type gitStatusMsg struct {
 	status *git.Status
 	err    error
@@ -165,7 +171,24 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 		case key.Matches(msg, m.keys.Stage):
 			if m.focused == ui.PanelFiles {
-				if file := m.filesPanel.SelectedFile(); file != nil {
+				if m.filesPanel.HasSelection() {
+					files := m.filesPanel.SelectedFiles()
+					var errors []string
+					for _, f := range files {
+						if !f.Staged {
+							if err := m.repo.Stage(f.Path); err != nil {
+								errors = append(errors, f.Path)
+							}
+						}
+					}
+					m.filesPanel.ClearSelection()
+					if len(errors) > 0 {
+						m.setStatus("Failed to stage some files", true)
+					} else {
+						m.setStatus(fmt.Sprintf("Staged %d files", len(files)), false)
+					}
+					cmds = append(cmds, m.refreshStatus())
+				} else if file := m.filesPanel.SelectedFile(); file != nil {
 					if err := m.repo.Stage(file.Path); err != nil {
 						m.setStatus(err.Error(), true)
 					} else {
@@ -176,12 +199,49 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 		case key.Matches(msg, m.keys.Unstage):
 			if m.focused == ui.PanelFiles {
-				if file := m.filesPanel.SelectedFile(); file != nil {
+				if m.filesPanel.HasSelection() {
+					files := m.filesPanel.SelectedFiles()
+					var errors []string
+					for _, f := range files {
+						if f.Staged {
+							if err := m.repo.Unstage(f.Path); err != nil {
+								errors = append(errors, f.Path)
+							}
+						}
+					}
+					m.filesPanel.ClearSelection()
+					if len(errors) > 0 {
+						m.setStatus("Failed to unstage some files", true)
+					} else {
+						m.setStatus(fmt.Sprintf("Unstaged %d files", len(files)), false)
+					}
+					cmds = append(cmds, m.refreshStatus())
+				} else if file := m.filesPanel.SelectedFile(); file != nil {
 					if err := m.repo.Unstage(file.Path); err != nil {
 						m.setStatus(err.Error(), true)
 					} else {
 						cmds = append(cmds, m.refreshStatus())
 					}
+				}
+			}
+
+		case key.Matches(msg, m.keys.Discard):
+			if m.focused == ui.PanelFiles {
+				if file := m.filesPanel.SelectedFile(); file != nil {
+					filePath := file.Path
+					m.activeModal = modals.NewConfirmModal(
+						m.styles,
+						"Discard Changes",
+						"Discard all changes to "+filePath+"?\nThis cannot be undone.",
+						func() tea.Cmd {
+							return func() tea.Msg {
+								if err := m.repo.Discard(filePath); err != nil {
+									return operationDoneMsg{err: err}
+								}
+								return operationDoneMsg{success: "Discarded changes to " + filePath}
+							}
+						},
+					)
 				}
 			}
 
@@ -201,46 +261,102 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			}
 
 		case key.Matches(msg, m.keys.Push):
-			cmds = append(cmds, func() tea.Msg {
-				if err := m.repo.Push(); err != nil {
-					return gitStatusMsg{err: err}
-				}
-				return refreshMsg{}
-			})
+			branch := m.repo.CurrentBranch()
+			m.activeModal = modals.NewConfirmModal(
+				m.styles,
+				"Push",
+				"Push commits to remote for branch '"+branch+"'?",
+				func() tea.Cmd {
+					return func() tea.Msg {
+						if err := m.repo.Push(); err != nil {
+							return operationDoneMsg{err: err}
+						}
+						return operationDoneMsg{success: "Pushed to remote"}
+					}
+				},
+			)
 
 		case key.Matches(msg, m.keys.Pull):
+			m.operationStatus = "Pulling..."
 			cmds = append(cmds, func() tea.Msg {
 				if err := m.repo.Pull(); err != nil {
-					return gitStatusMsg{err: err}
+					return operationDoneMsg{err: err}
 				}
-				return refreshMsg{}
+				return operationDoneMsg{success: "Pulled from remote"}
 			})
 
 		case key.Matches(msg, m.keys.Fetch):
+			m.operationStatus = "Fetching..."
 			cmds = append(cmds, func() tea.Msg {
 				if err := m.repo.Fetch(); err != nil {
-					return gitStatusMsg{err: err}
+					return operationDoneMsg{err: err}
 				}
-				return refreshMsg{}
+				return operationDoneMsg{success: "Fetched from remote"}
 			})
 
 		case key.Matches(msg, m.keys.Checkout), key.Matches(msg, m.keys.ShowCommit):
-			if m.focused == ui.PanelBranches {
+			switch m.focused {
+			case ui.PanelBranches:
 				if branch := m.branchesPanel.SelectedBranch(); branch != nil {
 					if err := m.repo.Checkout(branch.Name); err != nil {
 						m.setStatus(err.Error(), true)
 					} else {
+						m.setStatus("Switched to "+branch.Name, false)
 						cmds = append(cmds, m.refreshBranches(), m.refreshStatus(), m.refreshCommits())
 					}
 				}
-			} else if m.focused == ui.PanelCommits {
+			case ui.PanelCommits:
 				if commit := m.commitsPanel.SelectedCommit(); commit != nil {
 					diff, _ := m.repo.CommitDiff(commit.Hash)
 					title := commit.Hash[:7] + " - " + commit.Message
-					if len(title) > 60 {
-						title = title[:57] + "..."
+					titleWidth := lipgloss.Width(title)
+					maxWidth := m.width - 8
+					if titleWidth > maxWidth {
+						title = title[:maxWidth-3] + "..."
 					}
 					m.activeModal = modals.NewDiffModal(m.styles, title, diff, m.width-4, m.height-4)
+				}
+			}
+
+		case key.Matches(msg, m.keys.NewBranch):
+			if m.focused == ui.PanelBranches {
+				m.activeModal = modals.NewInputModal(
+					m.styles,
+					"New Branch",
+					"Enter branch name:",
+					"feature/my-branch",
+					func(name string) tea.Cmd {
+						return func() tea.Msg {
+							if err := m.repo.CreateBranch(name); err != nil {
+								return operationDoneMsg{err: err}
+							}
+							return operationDoneMsg{success: "Created branch " + name}
+						}
+					},
+				)
+			}
+
+		case key.Matches(msg, m.keys.DeleteBranch):
+			if m.focused == ui.PanelBranches {
+				if branch := m.branchesPanel.SelectedBranch(); branch != nil {
+					if branch.Name == m.repo.CurrentBranch() {
+						m.setStatus("Cannot delete current branch", true)
+					} else {
+						branchName := branch.Name
+						m.activeModal = modals.NewConfirmModal(
+							m.styles,
+							"Delete Branch",
+							"Delete branch '"+branchName+"'?\nThis cannot be undone.",
+							func() tea.Cmd {
+								return func() tea.Msg {
+									if err := m.repo.DeleteBranch(branchName); err != nil {
+										return operationDoneMsg{err: err}
+									}
+									return operationDoneMsg{success: "Deleted branch " + branchName}
+								}
+							},
+						)
+					}
 				}
 			}
 
@@ -298,6 +414,19 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			m.refreshBranches(),
 			m.refreshCommits(),
 		)
+
+	case operationDoneMsg:
+		m.operationStatus = ""
+		if msg.err != nil {
+			m.setStatus(msg.err.Error(), true)
+		} else if msg.success != "" {
+			m.setStatus(msg.success, false)
+			cmds = append(cmds,
+				m.refreshStatus(),
+				m.refreshBranches(),
+				m.refreshCommits(),
+			)
+		}
 
 	case statusClearMsg:
 		if time.Since(m.statusTime) >= 5*time.Second {
@@ -384,8 +513,10 @@ func (m *Model) renderStatusBar() string {
 	statusParts = append(statusParts, m.styles.StatusBarValue.Render(" on "))
 	statusParts = append(statusParts, m.styles.StatusBarKey.Render(branch))
 
-	if m.statusMessage != "" {
-		style := m.styles.StatusBarValue
+	if m.operationStatus != "" {
+		statusParts = append(statusParts, " │ "+m.styles.Spinner.Render(m.operationStatus))
+	} else if m.statusMessage != "" {
+		style := m.styles.Success
 		if m.statusError {
 			style = m.styles.StatusBarError
 		}
@@ -394,8 +525,7 @@ func (m *Model) renderStatusBar() string {
 
 	left := lipgloss.JoinHorizontal(lipgloss.Left, statusParts...)
 
-	hints := m.styles.HelpKey.Render("?") + m.styles.HelpDesc.Render(" help  ") +
-		m.styles.HelpKey.Render("q") + m.styles.HelpDesc.Render(" quit")
+	hints := m.getPanelHints()
 
 	width := m.width
 	leftWidth := lipgloss.Width(left)
@@ -409,6 +539,30 @@ func (m *Model) renderStatusBar() string {
 	return m.styles.StatusBar.Width(width).Render(
 		left + lipgloss.NewStyle().Width(padding).Render("") + hints,
 	)
+}
+
+func (m *Model) getPanelHints() string {
+	switch m.focused {
+	case ui.PanelFiles:
+		return m.styles.HelpKey.Render("s") + m.styles.HelpDesc.Render(" stage  ") +
+			m.styles.HelpKey.Render("u") + m.styles.HelpDesc.Render(" unstage  ") +
+			m.styles.HelpKey.Render("x") + m.styles.HelpDesc.Render(" discard  ") +
+			m.styles.HelpKey.Render("?") + m.styles.HelpDesc.Render(" help")
+	case ui.PanelBranches:
+		return m.styles.HelpKey.Render("enter") + m.styles.HelpDesc.Render(" checkout  ") +
+			m.styles.HelpKey.Render("n") + m.styles.HelpDesc.Render(" new  ") +
+			m.styles.HelpKey.Render("d") + m.styles.HelpDesc.Render(" delete  ") +
+			m.styles.HelpKey.Render("?") + m.styles.HelpDesc.Render(" help")
+	case ui.PanelCommits:
+		return m.styles.HelpKey.Render("enter") + m.styles.HelpDesc.Render(" view diff  ") +
+			m.styles.HelpKey.Render("?") + m.styles.HelpDesc.Render(" help")
+	case ui.PanelPreview:
+		return m.styles.HelpKey.Render("j/k") + m.styles.HelpDesc.Render(" scroll  ") +
+			m.styles.HelpKey.Render("?") + m.styles.HelpDesc.Render(" help")
+	default:
+		return m.styles.HelpKey.Render("?") + m.styles.HelpDesc.Render(" help  ") +
+			m.styles.HelpKey.Render("q") + m.styles.HelpDesc.Render(" quit")
+	}
 }
 
 func (m *Model) overlayModal(base, modal string) string {

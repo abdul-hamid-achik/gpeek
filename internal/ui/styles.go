@@ -116,8 +116,9 @@ func NewStyles(theme Theme) *Styles {
 		Foreground(lipgloss.Color(theme.Foreground))
 
 	s.ListItemSelected = lipgloss.NewStyle().
-		Foreground(lipgloss.Color(theme.Foreground)).
-		Background(lipgloss.Color(theme.Selection))
+		Foreground(lipgloss.Color(theme.Background)).
+		Background(lipgloss.Color(theme.Primary)).
+		Bold(true)
 
 	s.ListItemActive = lipgloss.NewStyle().
 		Foreground(lipgloss.Color(theme.Primary)).

@@ -63,7 +63,7 @@ func (p *BranchesPanel) Update(msg tea.Msg) tea.Cmd {
 			} else if len(p.branches) > 0 {
 				p.cursor = len(p.branches) - 1
 			}
-		case "tab":
+		case "W":
 			if len(p.worktrees) > 0 {
 				p.showWorktrees = !p.showWorktrees
 			}
@@ -83,7 +83,7 @@ func (p *BranchesPanel) Update(msg tea.Msg) tea.Cmd {
 
 func (p *BranchesPanel) View() string {
 	if len(p.branches) == 0 {
-		return p.styles.Dim.Render("No branches")
+		return p.styles.Dim.Render("No branches\n\nPress (n) to create a new branch")
 	}
 
 	var lines []string
@@ -131,14 +131,19 @@ func (p *BranchesPanel) View() string {
 
 func (p *BranchesPanel) renderBranch(b git.Branch, selected bool) string {
 	prefix := "  "
-	if b.Name == p.current {
+	if selected && p.focused {
 		prefix = "> "
 	}
 
-	line := prefix + b.Name
+	currentMarker := " "
+	if b.Name == p.current {
+		currentMarker = "*"
+	}
+
+	line := prefix + currentMarker + " " + b.Name
 
 	if b.IsRemote {
-		line = prefix + "origin/" + b.Name
+		line = prefix + currentMarker + " origin/" + b.Name
 	}
 
 	if selected && p.focused {
@@ -153,7 +158,11 @@ func (p *BranchesPanel) renderBranch(b git.Branch, selected bool) string {
 }
 
 func (p *BranchesPanel) renderWorktree(w git.Worktree, selected bool) string {
-	line := fmt.Sprintf("  %s (%s)", w.Path, w.Branch)
+	prefix := "  "
+	if selected && p.focused {
+		prefix = "> "
+	}
+	line := fmt.Sprintf("%s  %s (%s)", prefix, w.Path, w.Branch)
 
 	if selected && p.focused {
 		return p.styles.ListItemSelected.Render(line)

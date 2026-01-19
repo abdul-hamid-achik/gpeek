@@ -8,6 +8,7 @@ import (
 	"github.com/abdul-hamid-achik/gpeek/internal/git"
 	"github.com/abdul-hamid-achik/gpeek/internal/ui"
 	tea "github.com/charmbracelet/bubbletea"
+	"github.com/charmbracelet/lipgloss"
 )
 
 type CommitsPanel struct {
@@ -68,7 +69,7 @@ func (p *CommitsPanel) Update(msg tea.Msg) tea.Cmd {
 
 func (p *CommitsPanel) View() string {
 	if len(p.commits) == 0 {
-		return p.styles.Dim.Render("No commits")
+		return p.styles.Dim.Render("No commits\n\nMake your first commit with (c)")
 	}
 
 	var lines []string
@@ -90,15 +91,35 @@ func (p *CommitsPanel) View() string {
 func (p *CommitsPanel) renderCommit(c git.Commit, selected bool) string {
 	hash := c.Hash[:7]
 	msg := c.Message
-	if len(msg) > p.width-20 {
-		msg = msg[:p.width-23] + "..."
-	}
-
 	timeStr := p.formatTime(c.Time)
-
 	graph := p.renderGraph(c)
 
-	line := fmt.Sprintf("%s %s %s %s",
+	selPrefix := "  "
+	if selected && p.focused {
+		selPrefix = "> "
+	}
+
+	// Calculate available width for message
+	prefix := selPrefix + graph + " " + hash + " "
+	suffix := " " + timeStr
+	prefixWidth := lipgloss.Width(prefix)
+	suffixWidth := lipgloss.Width(suffix)
+	availableWidth := p.width - prefixWidth - suffixWidth - 2
+
+	// Truncate message if needed using visual width
+	if lipgloss.Width(msg) > availableWidth && availableWidth > 3 {
+		runes := []rune(msg)
+		for i := len(runes); i > 0; i-- {
+			truncated := string(runes[:i]) + "..."
+			if lipgloss.Width(truncated) <= availableWidth {
+				msg = truncated
+				break
+			}
+		}
+	}
+
+	line := fmt.Sprintf("%s%s %s %s %s",
+		selPrefix,
 		graph,
 		p.styles.GraphCommit.Render(hash),
 		msg,
