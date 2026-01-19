@@ -166,3 +166,97 @@ deleted file mode 100644
 		t.Error("expected file to be marked as deleted")
 	}
 }
+
+func TestIsBinaryContent(t *testing.T) {
+	tests := []struct {
+		name     string
+		content  string
+		expected bool
+	}{
+		{
+			name:     "empty string",
+			content:  "",
+			expected: false,
+		},
+		{
+			name:     "normal text",
+			content:  "hello world",
+			expected: false,
+		},
+		{
+			name:     "text with newlines",
+			content:  "line1\nline2\nline3",
+			expected: false,
+		},
+		{
+			name:     "unicode text",
+			content:  "こんにちは世界",
+			expected: false,
+		},
+		{
+			name:     "null byte",
+			content:  "hello\x00world",
+			expected: true,
+		},
+		{
+			name:     "binary data with null",
+			content:  "\x00\x01\x02\x03",
+			expected: true,
+		},
+		{
+			name:     "invalid utf8 sequence",
+			content:  "\xff\xfe",
+			expected: true,
+		},
+		{
+			name:     "mixed valid and invalid utf8",
+			content:  "hello\x80world",
+			expected: true,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			result := isBinaryContent(tt.content)
+			if result != tt.expected {
+				t.Errorf("isBinaryContent(%q) = %v, expected %v", tt.content, result, tt.expected)
+			}
+		})
+	}
+}
+
+func TestBinaryFileDetection(t *testing.T) {
+	// Test that git's "Binary files" prefix is detected
+	input := `diff --git a/image.png b/image.png
+Binary files a/image.png and b/image.png differ`
+
+	d := Parse(input)
+
+	if len(d.Files) != 1 {
+		t.Fatalf("expected 1 file, got %d", len(d.Files))
+	}
+
+	if !d.Files[0].IsBinary {
+		t.Error("expected file to be marked as binary")
+	}
+}
+
+func TestBinaryContentInHunk(t *testing.T) {
+	// Test that binary content in hunk lines marks file as binary
+	input := "diff --git a/checksum b/checksum\n" +
+		"--- a/checksum\n" +
+		"+++ b/checksum\n" +
+		"@@ -1 +1 @@\n" +
+		"-old\n" +
+		"+new\x00binary"
+
+	d := Parse(input)
+
+	if len(d.Files) != 1 {
+		t.Fatalf("expected 1 file, got %d", len(d.Files))
+	}
+
+	if !d.Files[0].IsBinary {
+		t.Error("expected file with binary content to be marked as binary")
+	}
+}

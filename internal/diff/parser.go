@@ -4,6 +4,7 @@ import (
 	"regexp"
 	"strconv"
 	"strings"
+	"unicode/utf8"
 )
 
 type DiffType int
@@ -53,6 +54,19 @@ var (
 	oldFileRegex    = regexp.MustCompile(`^--- (?:a/)?(.*)$`)
 	newFileRegex    = regexp.MustCompile(`^\+\+\+ (?:b/)?(.*)$`)
 )
+
+// isBinaryContent checks if content appears to be binary
+func isBinaryContent(content string) bool {
+	// Check for null bytes (strong indicator of binary)
+	if strings.Contains(content, "\x00") {
+		return true
+	}
+	// Check if content is valid UTF-8
+	if !utf8.ValidString(content) {
+		return true
+	}
+	return false
+}
 
 func Parse(input string) *Diff {
 	diff := &Diff{}
@@ -139,30 +153,35 @@ func Parse(input string) *Diff {
 		}
 
 		var diffLine Line
+		var lineContent string
 		if strings.HasPrefix(line, "+") {
+			lineContent = strings.TrimPrefix(line, "+")
 			diffLine = Line{
 				Type:      DiffAdd,
-				Content:   strings.TrimPrefix(line, "+"),
+				Content:   lineContent,
 				NewNumber: newLineNum,
 			}
 			newLineNum++
 		} else if strings.HasPrefix(line, "-") {
+			lineContent = strings.TrimPrefix(line, "-")
 			diffLine = Line{
 				Type:      DiffRemove,
-				Content:   strings.TrimPrefix(line, "-"),
+				Content:   lineContent,
 				OldNumber: oldLineNum,
 			}
 			oldLineNum++
 		} else if strings.HasPrefix(line, " ") {
+			lineContent = strings.TrimPrefix(line, " ")
 			diffLine = Line{
 				Type:      DiffContext,
-				Content:   strings.TrimPrefix(line, " "),
+				Content:   lineContent,
 				OldNumber: oldLineNum,
 				NewNumber: newLineNum,
 			}
 			oldLineNum++
 			newLineNum++
 		} else if line == "" {
+			lineContent = ""
 			diffLine = Line{
 				Type:      DiffContext,
 				Content:   "",
@@ -173,6 +192,11 @@ func Parse(input string) *Diff {
 			newLineNum++
 		} else {
 			continue
+		}
+
+		// Check for binary content and mark file accordingly
+		if lineContent != "" && isBinaryContent(lineContent) {
+			currentFile.IsBinary = true
 		}
 
 		currentHunk.Lines = append(currentHunk.Lines, diffLine)

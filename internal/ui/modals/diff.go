@@ -151,6 +151,29 @@ func (m *DiffModal) isAllCollapsed() bool {
 	return true
 }
 
+// scrollToFocusedFile scrolls the viewport to show the focused file header
+func (m *DiffModal) scrollToFocusedFile() {
+	if len(m.parsedDiff.Files) == 0 {
+		return
+	}
+
+	// Calculate the line number where the focused file header appears
+	lineNum := 0
+	for i := 0; i < m.focusedFile; i++ {
+		lineNum++ // File header line
+		if m.expanded[i] && !m.parsedDiff.Files[i].IsBinary {
+			for _, hunk := range m.parsedDiff.Files[i].Hunks {
+				lineNum++ // Hunk header
+				lineNum += len(hunk.Lines)
+			}
+			lineNum++ // Extra blank line after expanded file
+		}
+	}
+
+	// Scroll to the calculated line
+	m.viewport.SetYOffset(lineNum)
+}
+
 func (m *DiffModal) Update(msg tea.Msg) (Modal, tea.Cmd) {
 	switch msg := msg.(type) {
 	case tea.KeyMsg:
@@ -175,27 +198,29 @@ func (m *DiffModal) Update(msg tea.Msg) (Modal, tea.Cmd) {
 				m.renderContent()
 			}
 		case "j", "down":
-			if m.isAllCollapsed() && len(m.parsedDiff.Files) > 0 {
-				// Navigate to next file when all collapsed
+			// Always navigate between file headers
+			if len(m.parsedDiff.Files) > 0 {
 				if m.focusedFile < len(m.parsedDiff.Files)-1 {
 					m.focusedFile++
 					m.renderContent()
+					m.scrollToFocusedFile()
 				}
-			} else {
-				// Scroll viewport when files are expanded
-				m.viewport.ScrollDown(1)
 			}
 		case "k", "up":
-			if m.isAllCollapsed() && len(m.parsedDiff.Files) > 0 {
-				// Navigate to previous file when all collapsed
+			// Always navigate between file headers
+			if len(m.parsedDiff.Files) > 0 {
 				if m.focusedFile > 0 {
 					m.focusedFile--
 					m.renderContent()
+					m.scrollToFocusedFile()
 				}
-			} else {
-				// Scroll viewport when files are expanded
-				m.viewport.ScrollUp(1)
 			}
+		case "ctrl+j", "J":
+			// Scroll viewport content
+			m.viewport.ScrollDown(1)
+		case "ctrl+k", "K":
+			// Scroll viewport content
+			m.viewport.ScrollUp(1)
 		case "ctrl+d":
 			m.viewport.HalfPageDown()
 		case "ctrl+u":

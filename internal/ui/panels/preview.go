@@ -165,6 +165,29 @@ func (p *PreviewPanel) isAllCollapsed() bool {
 	return true
 }
 
+// scrollToFocusedFile scrolls the viewport to show the focused file header
+func (p *PreviewPanel) scrollToFocusedFile() {
+	if p.parsedDiff == nil || len(p.parsedDiff.Files) == 0 {
+		return
+	}
+
+	// Calculate the line number where the focused file header appears
+	lineNum := 0
+	for i := 0; i < p.focusedFile; i++ {
+		lineNum++ // File header line
+		if p.expanded[i] && !p.parsedDiff.Files[i].IsBinary {
+			for _, hunk := range p.parsedDiff.Files[i].Hunks {
+				lineNum++ // Hunk header
+				lineNum += len(hunk.Lines)
+			}
+			lineNum++ // Extra blank line after expanded file
+		}
+	}
+
+	// Scroll to the calculated line
+	p.viewport.SetYOffset(lineNum)
+}
+
 func (p *PreviewPanel) Update(msg tea.Msg) tea.Cmd {
 	if !p.focused {
 		return nil
@@ -193,27 +216,29 @@ func (p *PreviewPanel) Update(msg tea.Msg) tea.Cmd {
 				p.renderContent()
 			}
 		case "j", "down":
-			if p.isAllCollapsed() && p.parsedDiff != nil && len(p.parsedDiff.Files) > 0 {
-				// Navigate to next file when all collapsed
+			// Always navigate between file headers
+			if p.parsedDiff != nil && len(p.parsedDiff.Files) > 0 {
 				if p.focusedFile < len(p.parsedDiff.Files)-1 {
 					p.focusedFile++
 					p.renderContent()
+					p.scrollToFocusedFile()
 				}
-			} else {
-				// Scroll viewport when files are expanded
-				p.viewport.ScrollDown(1)
 			}
 		case "k", "up":
-			if p.isAllCollapsed() && p.parsedDiff != nil && len(p.parsedDiff.Files) > 0 {
-				// Navigate to previous file when all collapsed
+			// Always navigate between file headers
+			if p.parsedDiff != nil && len(p.parsedDiff.Files) > 0 {
 				if p.focusedFile > 0 {
 					p.focusedFile--
 					p.renderContent()
+					p.scrollToFocusedFile()
 				}
-			} else {
-				// Scroll viewport when files are expanded
-				p.viewport.ScrollUp(1)
 			}
+		case "ctrl+j", "J":
+			// Scroll viewport content
+			p.viewport.ScrollDown(1)
+		case "ctrl+k", "K":
+			// Scroll viewport content
+			p.viewport.ScrollUp(1)
 		case "g":
 			p.viewport.GotoTop()
 		case "G":
