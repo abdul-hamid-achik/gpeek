@@ -5,6 +5,7 @@ import (
 	"strings"
 
 	"github.com/abdul-hamid-achik/gpeek/internal/diff"
+	"github.com/abdul-hamid-achik/gpeek/internal/search"
 	"github.com/abdul-hamid-achik/gpeek/internal/ui"
 	uisearch "github.com/abdul-hamid-achik/gpeek/internal/ui/search"
 	"github.com/charmbracelet/bubbles/viewport"
@@ -23,6 +24,10 @@ type DiffModal struct {
 	allExpanded bool         // Toggle all state
 	focusedFile int          // Currently focused file index
 
+	// Per-file scrolling
+	fileScrollOffset map[int]int // File index → scroll offset within file
+	maxLinesPerFile  int         // Max visible lines per expanded file
+
 	// Diff search
 	diffSearch *uisearch.DiffSearch
 }
@@ -40,15 +45,17 @@ func NewDiffModal(styles *ui.Styles, title, diffContent string, width, height in
 	}
 
 	m := &DiffModal{
-		styles:      styles,
-		viewport:    vp,
-		commitInfo:  title,
-		rawDiff:     diffContent,
-		parsedDiff:  parsedDiff,
-		expanded:    expanded,
-		allExpanded: true,
-		focusedFile: 0,
-		diffSearch:  uisearch.NewDiffSearch(styles),
+		styles:           styles,
+		viewport:         vp,
+		commitInfo:       title,
+		rawDiff:          diffContent,
+		parsedDiff:       parsedDiff,
+		expanded:         expanded,
+		allExpanded:      true,
+		focusedFile:      0,
+		fileScrollOffset: make(map[int]int),
+		maxLinesPerFile:  20,
+		diffSearch:       uisearch.NewDiffSearch(styles),
 	}
 	m.width = width
 	m.height = height
@@ -58,6 +65,13 @@ func NewDiffModal(styles *ui.Styles, title, diffContent string, width, height in
 	return m
 }
 
+// fileLine represents a line in the file content for constrained rendering
+type fileLine struct {
+	isHunk bool
+	text   string
+	line   diff.Line
+}
+
 func (m *DiffModal) renderContent() {
 	if len(m.parsedDiff.Files) == 0 {
 		m.viewport.SetContent("No changes in this commit")
@@ -65,6 +79,7 @@ func (m *DiffModal) renderContent() {
 	}
 
 	var content strings.Builder
+	lineNum := 0
 
 	for i, file := range m.parsedDiff.Files {
 		// Render file header with expand/collapse indicator
@@ -75,6 +90,7 @@ func (m *DiffModal) renderContent() {
 
 		// Calculate stats for this file
 		adds, dels := m.countFileChanges(file)
+		totalLines := m.countFileLines(file)
 
 		// Determine filename to display
 		filename := file.NewName
@@ -90,8 +106,14 @@ func (m *DiffModal) renderContent() {
 			stats = fmt.Sprintf("+%d -%d", adds, dels)
 		}
 
+		// Add scroll indicator to header if file has more content
+		scrollInfo := ""
+		if m.expanded[i] && totalLines > m.maxLinesPerFile {
+			scrollInfo = fmt.Sprintf(" [%d/%d]", m.fileScrollOffset[i]+1, totalLines)
+		}
+
 		// Style header (highlight if focused)
-		header := fmt.Sprintf("%s %s  (%s)", indicator, filename, stats)
+		header := fmt.Sprintf("%s %s  (%s)%s", indicator, filename, stats, scrollInfo)
 
 		if i == m.focusedFile {
 			// Focused file header style
@@ -105,18 +127,53 @@ func (m *DiffModal) renderContent() {
 			content.WriteString(m.styles.DiffMeta.Render(header))
 		}
 		content.WriteString("\n")
+		lineNum++
 
 		// Render file content if expanded (and not binary)
 		if m.expanded[i] && !file.IsBinary {
+			// Collect all lines for this file
+			var fileLines []fileLine
 			for _, hunk := range file.Hunks {
-				content.WriteString(m.styles.DiffHunk.Render(hunk.Header))
-				content.WriteString("\n")
+				fileLines = append(fileLines, fileLine{isHunk: true, text: hunk.Header})
 				for _, line := range hunk.Lines {
-					content.WriteString(m.renderLine(line))
-					content.WriteString("\n")
+					fileLines = append(fileLines, fileLine{line: line})
 				}
 			}
+
+			offset := m.fileScrollOffset[i]
+
+			// Show "↑ X more" if scrolled down
+			if offset > 0 {
+				content.WriteString(m.styles.Dim.Render(fmt.Sprintf("  ↑ %d more lines\n", offset)))
+				lineNum++
+			}
+
+			// Render visible lines
+			endLine := offset + m.maxLinesPerFile
+			if endLine > len(fileLines) {
+				endLine = len(fileLines)
+			}
+
+			for j := offset; j < endLine; j++ {
+				fl := fileLines[j]
+				if fl.isHunk {
+					content.WriteString(m.styles.DiffHunk.Render(fl.text))
+				} else {
+					content.WriteString(m.renderLine(fl.line, lineNum))
+				}
+				content.WriteString("\n")
+				lineNum++
+			}
+
+			// Show "↓ X more" if more content below
+			remaining := len(fileLines) - endLine
+			if remaining > 0 {
+				content.WriteString(m.styles.Dim.Render(fmt.Sprintf("  ↓ %d more lines\n", remaining)))
+				lineNum++
+			}
+
 			content.WriteString("\n")
+			lineNum++
 		}
 	}
 
@@ -139,15 +196,39 @@ func (m *DiffModal) countFileChanges(file diff.FileDiff) (adds, dels int) {
 	return
 }
 
-func (m *DiffModal) renderLine(line diff.Line) string {
+func (m *DiffModal) renderLine(line diff.Line, lineNum int) string {
+	prefix := " "
+	var baseStyle lipgloss.Style
+
 	switch line.Type {
 	case diff.DiffAdd:
-		return m.styles.DiffAdd.Render("+" + line.Content)
+		prefix = "+"
+		baseStyle = m.styles.DiffAdd
 	case diff.DiffRemove:
-		return m.styles.DiffRemove.Render("-" + line.Content)
+		prefix = "-"
+		baseStyle = m.styles.DiffRemove
 	default:
-		return m.styles.DiffContext.Render(" " + line.Content)
+		baseStyle = m.styles.DiffContext
 	}
+
+	content := line.Content
+
+	// Apply search highlighting if matches exist
+	matches := m.diffSearch.GetLineMatches(lineNum)
+	if len(matches) > 0 {
+		// Convert to search.Match format and highlight
+		var searchMatches []search.Match
+		for _, match := range matches {
+			searchMatches = append(searchMatches, search.Match{
+				Start: match.StartCol,
+				End:   match.EndCol,
+			})
+		}
+		h := search.NewHighlighter(m.styles.SearchMatch, baseStyle)
+		return baseStyle.Render(prefix) + h.Highlight(content, searchMatches)
+	}
+
+	return baseStyle.Render(prefix + content)
 }
 
 func (m *DiffModal) isAllCollapsed() bool {
@@ -157,6 +238,15 @@ func (m *DiffModal) isAllCollapsed() bool {
 		}
 	}
 	return true
+}
+
+func (m *DiffModal) countFileLines(file diff.FileDiff) int {
+	count := 0
+	for _, hunk := range file.Hunks {
+		count++ // hunk header
+		count += len(hunk.Lines)
+	}
+	return count
 }
 
 // scrollToFocusedFile scrolls the viewport to show the focused file header
@@ -170,10 +260,26 @@ func (m *DiffModal) scrollToFocusedFile() {
 	for i := 0; i < m.focusedFile; i++ {
 		lineNum++ // File header line
 		if m.expanded[i] && !m.parsedDiff.Files[i].IsBinary {
-			for _, hunk := range m.parsedDiff.Files[i].Hunks {
-				lineNum++ // Hunk header
-				lineNum += len(hunk.Lines)
+			totalLines := m.countFileLines(m.parsedDiff.Files[i])
+			offset := m.fileScrollOffset[i]
+
+			// "↑ X more" indicator
+			if offset > 0 {
+				lineNum++
 			}
+
+			// Visible lines
+			endLine := offset + m.maxLinesPerFile
+			if endLine > totalLines {
+				endLine = totalLines
+			}
+			lineNum += endLine - offset
+
+			// "↓ X more" indicator
+			if endLine < totalLines {
+				lineNum++
+			}
+
 			lineNum++ // Extra blank line after expanded file
 		}
 	}
@@ -224,6 +330,10 @@ func (m *DiffModal) Update(msg tea.Msg) (Modal, tea.Cmd) {
 			// Toggle focused file expansion
 			if len(m.parsedDiff.Files) > 0 {
 				m.expanded[m.focusedFile] = !m.expanded[m.focusedFile]
+				// Reset scroll offset when collapsing
+				if !m.expanded[m.focusedFile] {
+					m.fileScrollOffset[m.focusedFile] = 0
+				}
 				// Update allExpanded state
 				m.allExpanded = !m.isAllCollapsed()
 				m.renderContent()
@@ -238,19 +348,47 @@ func (m *DiffModal) Update(msg tea.Msg) (Modal, tea.Cmd) {
 				m.renderContent()
 			}
 		case "j", "down":
-			// Always navigate between file headers
 			if len(m.parsedDiff.Files) > 0 {
+				file := m.parsedDiff.Files[m.focusedFile]
+				totalLines := m.countFileLines(file)
+
+				if m.expanded[m.focusedFile] && totalLines > m.maxLinesPerFile {
+					// File is expanded and has scrollable content
+					maxOffset := totalLines - m.maxLinesPerFile
+					if m.fileScrollOffset[m.focusedFile] < maxOffset {
+						// Scroll within file
+						m.fileScrollOffset[m.focusedFile]++
+						m.renderContent()
+						return m, nil
+					}
+				}
+
+				// At bottom of file or file collapsed - move to next file
 				if m.focusedFile < len(m.parsedDiff.Files)-1 {
 					m.focusedFile++
+					m.fileScrollOffset[m.focusedFile] = 0 // Reset scroll for new file
 					m.renderContent()
 					m.scrollToFocusedFile()
 				}
 			}
 		case "k", "up":
-			// Always navigate between file headers
 			if len(m.parsedDiff.Files) > 0 {
+				if m.expanded[m.focusedFile] && m.fileScrollOffset[m.focusedFile] > 0 {
+					// Scroll up within file
+					m.fileScrollOffset[m.focusedFile]--
+					m.renderContent()
+					return m, nil
+				}
+
+				// At top of file or file collapsed - move to prev file
 				if m.focusedFile > 0 {
 					m.focusedFile--
+					// Jump to bottom of previous file if expanded
+					file := m.parsedDiff.Files[m.focusedFile]
+					totalLines := m.countFileLines(file)
+					if m.expanded[m.focusedFile] && totalLines > m.maxLinesPerFile {
+						m.fileScrollOffset[m.focusedFile] = totalLines - m.maxLinesPerFile
+					}
 					m.renderContent()
 					m.scrollToFocusedFile()
 				}

@@ -44,6 +44,7 @@ type Styles struct {
 	DiffHunk    lipgloss.Style
 	DiffMeta    lipgloss.Style
 	LineNumber  lipgloss.Style
+	SearchMatch lipgloss.Style
 
 	// Modal styles
 	Modal       lipgloss.Style
@@ -182,6 +183,10 @@ func NewStyles(theme Theme) *Styles {
 		Foreground(lipgloss.Color(theme.Subtle)).
 		Width(4).
 		Align(lipgloss.Right)
+
+	s.SearchMatch = lipgloss.NewStyle().
+		Bold(true).
+		Background(lipgloss.Color(theme.Warning))
 
 	// Modal styles
 	s.Modal = lipgloss.NewStyle().
