@@ -179,7 +179,7 @@ func NewStyles(theme Theme) *Styles {
 		Foreground(lipgloss.Color(theme.Muted))
 
 	s.LineNumber = lipgloss.NewStyle().
-		Foreground(lipgloss.Color(theme.Muted)).
+		Foreground(lipgloss.Color(theme.Subtle)).
 		Width(4).
 		Align(lipgloss.Right)
 

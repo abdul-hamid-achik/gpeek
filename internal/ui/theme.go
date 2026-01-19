@@ -16,6 +16,7 @@ type Theme struct {
 	Secondary  string     `yaml:"secondary"`
 	Accent     string     `yaml:"accent"`
 	Muted      string     `yaml:"muted"`
+	Subtle     string     `yaml:"subtle"`
 	Border     string     `yaml:"border"`
 	Selection  string     `yaml:"selection"`
 	Added      string     `yaml:"added"`
@@ -51,7 +52,8 @@ func NordTheme() Theme {
 		Primary:    "#88C0D0",
 		Secondary:  "#81A1C1",
 		Accent:     "#5E81AC",
-		Muted:      "#4C566A",
+		Muted:      "#D8DEE9", // nord4 - readable secondary text (was #4C566A)
+		Subtle:     "#616E88", // For line numbers, less prominent but readable
 		Border:     "#3B4252",
 		Selection:  "#434C5E",
 		Added:      "#A3BE8C",
@@ -86,7 +88,8 @@ func CatppuccinMochaTheme() Theme {
 		Primary:    "#89B4FA",
 		Secondary:  "#74C7EC",
 		Accent:     "#B4BEFE",
-		Muted:      "#6C7086",
+		Muted:      "#A6ADC8", // subtext0 - readable secondary text
+		Subtle:     "#6C7086", // overlay0 - for line numbers
 		Border:     "#313244",
 		Selection:  "#45475A",
 		Added:      "#A6E3A1",
@@ -121,7 +124,8 @@ func GruvboxDarkTheme() Theme {
 		Primary:    "#83A598",
 		Secondary:  "#458588",
 		Accent:     "#D3869B",
-		Muted:      "#928374",
+		Muted:      "#BDAE93", // fg3 - readable secondary text
+		Subtle:     "#928374", // gray - for line numbers
 		Border:     "#3C3836",
 		Selection:  "#504945",
 		Added:      "#B8BB26",
@@ -156,7 +160,8 @@ func DraculaTheme() Theme {
 		Primary:    "#BD93F9",
 		Secondary:  "#8BE9FD",
 		Accent:     "#FF79C6",
-		Muted:      "#6272A4",
+		Muted:      "#BFBFBF", // readable secondary text
+		Subtle:     "#6272A4", // comment color - for line numbers
 		Border:     "#44475A",
 		Selection:  "#44475A",
 		Added:      "#50FA7B",

@@ -104,7 +104,7 @@ func (m *DiffModal) View() string {
 	}
 
 	headerStyle := lipgloss.NewStyle().
-		Foreground(lipgloss.Color(m.styles.Theme.Muted)).
+		Foreground(lipgloss.Color(m.styles.Theme.Secondary)).
 		Background(lipgloss.Color(m.styles.Theme.Background))
 
 	header := headerStyle.Render("View: " + modeIndicator + " (v to toggle)")
