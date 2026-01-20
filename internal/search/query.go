@@ -76,6 +76,15 @@ func (q Query) CreateMatcher() *Matcher {
 	return NewMatcher(q.Text, q.Mode, q.CaseSensitive, q.SmartCase)
 }
 
+// RegexError returns any regex compilation error if this query uses regex mode
+func (q Query) RegexError() error {
+	if q.Mode != ModeRegex || q.Text == "" {
+		return nil
+	}
+	matcher := q.CreateMatcher()
+	return matcher.Error()
+}
+
 // Filter filters a slice of strings based on the query
 func Filter[T any](items []T, query Query, getText func(T) string) []T {
 	if query.Text == "" {

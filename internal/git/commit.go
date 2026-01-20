@@ -54,6 +54,20 @@ func (r *Repository) GetLastCommitMessage() (string, error) {
 	return commit.Message, nil
 }
 
+func (r *Repository) GetLastCommitInfo() (message, hash string, err error) {
+	head, err := r.repo.Head()
+	if err != nil {
+		return "", "", err
+	}
+
+	commit, err := r.repo.CommitObject(head.Hash())
+	if err != nil {
+		return "", "", err
+	}
+
+	return commit.Message, head.Hash().String(), nil
+}
+
 func (r *Repository) Log(limit int) ([]Commit, error) {
 	var commits []Commit
 

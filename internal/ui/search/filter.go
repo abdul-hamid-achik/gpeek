@@ -26,6 +26,7 @@ type FilterBar struct {
 	query         search.Query
 	totalCount    int
 	matchCount    int
+	regexErr      error
 }
 
 // NewFilterBar creates a new filter bar component
@@ -129,6 +130,20 @@ func (f *FilterBar) updateQuery() {
 	}
 
 	f.query = search.ParseQuery(f.input.Value(), opts)
+	f.regexErr = f.query.RegexError()
+}
+
+// HasError returns true if there's a regex compilation error
+func (f *FilterBar) HasError() bool {
+	return f.regexErr != nil
+}
+
+// GetError returns the current regex error message, if any
+func (f *FilterBar) GetError() string {
+	if f.regexErr != nil {
+		return f.regexErr.Error()
+	}
+	return ""
 }
 
 // Update handles input events
@@ -189,9 +204,17 @@ func (f *FilterBar) View() string {
 		parts = append(parts, f.styles.StatusBarValue.Render(val))
 	}
 
-	// Match count
-	countStr := fmt.Sprintf(" (%d/%d)", f.matchCount, f.totalCount)
-	parts = append(parts, f.styles.Dim.Render(countStr))
+	// Show error or match count
+	if f.regexErr != nil {
+		errStr := " ⚠ " + f.regexErr.Error()
+		if len(errStr) > 30 {
+			errStr = errStr[:27] + "..."
+		}
+		parts = append(parts, f.styles.Error.Render(errStr))
+	} else {
+		countStr := fmt.Sprintf(" (%d/%d)", f.matchCount, f.totalCount)
+		parts = append(parts, f.styles.Dim.Render(countStr))
+	}
 
 	// Mode indicators
 	var indicators []string

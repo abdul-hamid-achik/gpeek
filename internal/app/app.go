@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/abdul-hamid-achik/gpeek/internal/config"
 	"github.com/abdul-hamid-achik/gpeek/internal/git"
 	"github.com/abdul-hamid-achik/gpeek/internal/ui"
 	"github.com/abdul-hamid-achik/gpeek/internal/ui/modals"
@@ -78,8 +79,15 @@ func New(repoPath string) (*Model, error) {
 		return nil, err
 	}
 
-	theme := ui.NordTheme()
+	// Load config and theme
+	cfg, _ := config.Load()
+	theme, _ := ui.LoadTheme(cfg.Theme)
 	styles := ui.NewStyles(theme)
+
+	// Apply config settings
+	if cfg.Git.DefaultRemote != "" {
+		repo.SetDefaultRemote(cfg.Git.DefaultRemote)
+	}
 
 	m := &Model{
 		layout:  ui.NewLayout(80, 24),
@@ -271,8 +279,8 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		case key.Matches(msg, m.keys.Commit):
 			staged := m.filesPanel.StagedFiles()
 			if len(staged) > 0 {
-				lastMsg, _ := m.repo.GetLastCommitMessage()
-				m.activeModal = modals.NewCommitModal(m.styles, staged, lastMsg, func(message string, isAmend bool) tea.Cmd {
+				lastMsg, lastHash, _ := m.repo.GetLastCommitInfo()
+				m.activeModal = modals.NewCommitModal(m.styles, staged, lastMsg, lastHash, func(message string, isAmend bool) tea.Cmd {
 					return func() tea.Msg {
 						var err error
 						if isAmend {

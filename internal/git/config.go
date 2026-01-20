@@ -29,10 +29,21 @@ var editableKeys = map[string]bool{
 	"user.email":          true,
 	"core.editor":         true,
 	"core.autocrlf":       true,
+	"core.ignorecase":     true,
+	"core.pager":          true,
+	"core.whitespace":     true,
 	"init.defaultBranch":  true,
 	"pull.rebase":         true,
+	"pull.ff":             true,
 	"push.default":        true,
+	"push.autoSetupRemote": true,
 	"merge.conflictstyle": true,
+	"merge.ff":            true,
+	"diff.tool":           true,
+	"merge.tool":          true,
+	"fetch.prune":         true,
+	"rebase.autoStash":    true,
+	"commit.gpgsign":      true,
 }
 
 // GetConfig reads the local repository configuration
@@ -251,15 +262,30 @@ func validateConfigValue(key, value string) error {
 		if !validValues[strings.ToLower(value)] {
 			return fmt.Errorf("core.autocrlf must be 'true', 'false', or 'input'")
 		}
+	case "core.ignorecase", "fetch.prune", "rebase.autoStash", "commit.gpgsign", "push.autoSetupRemote":
+		validValues := map[string]bool{"true": true, "false": true}
+		if !validValues[strings.ToLower(value)] {
+			return fmt.Errorf("%s must be 'true' or 'false'", key)
+		}
 	case "pull.rebase":
 		validValues := map[string]bool{"true": true, "false": true, "merges": true, "interactive": true}
 		if !validValues[strings.ToLower(value)] {
 			return fmt.Errorf("pull.rebase must be 'true', 'false', 'merges', or 'interactive'")
 		}
+	case "pull.ff", "merge.ff":
+		validValues := map[string]bool{"true": true, "false": true, "only": true}
+		if !validValues[strings.ToLower(value)] {
+			return fmt.Errorf("%s must be 'true', 'false', or 'only'", key)
+		}
 	case "push.default":
 		validValues := map[string]bool{"nothing": true, "current": true, "upstream": true, "simple": true, "matching": true}
 		if !validValues[strings.ToLower(value)] {
 			return fmt.Errorf("push.default must be 'nothing', 'current', 'upstream', 'simple', or 'matching'")
+		}
+	case "merge.conflictstyle":
+		validValues := map[string]bool{"merge": true, "diff3": true, "zdiff3": true}
+		if !validValues[strings.ToLower(value)] {
+			return fmt.Errorf("merge.conflictstyle must be 'merge', 'diff3', or 'zdiff3'")
 		}
 	}
 

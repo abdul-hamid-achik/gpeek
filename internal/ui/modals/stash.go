@@ -37,7 +37,8 @@ type StashModal struct {
 	previewContent string
 	previewScroll  int
 
-	err string
+	err     string
+	success string
 }
 
 func NewStashModal(styles *ui.Styles, stashes []git.Stash, repo *git.Repository, width, height int) *StashModal {
@@ -84,9 +85,12 @@ func (m *StashModal) updateListMode(msg tea.KeyMsg) (Modal, tea.Cmd) {
 	case "p":
 		if len(m.stashes) > 0 {
 			stash := m.stashes[m.cursor]
+			m.err = ""
+			m.success = ""
 			if err := m.repo.StashPop(stash.Index); err != nil {
 				m.err = err.Error()
 			} else {
+				m.success = "Stash popped successfully"
 				m.refreshStashes()
 			}
 		}
@@ -95,10 +99,12 @@ func (m *StashModal) updateListMode(msg tea.KeyMsg) (Modal, tea.Cmd) {
 	case "a":
 		if len(m.stashes) > 0 {
 			stash := m.stashes[m.cursor]
+			m.err = ""
+			m.success = ""
 			if err := m.repo.StashApply(stash.Index); err != nil {
 				m.err = err.Error()
 			} else {
-				m.err = "Applied stash (kept in list)"
+				m.success = "Stash applied (kept in list)"
 			}
 		}
 		return m, nil
@@ -106,9 +112,12 @@ func (m *StashModal) updateListMode(msg tea.KeyMsg) (Modal, tea.Cmd) {
 	case "d":
 		if len(m.stashes) > 0 {
 			stash := m.stashes[m.cursor]
+			m.err = ""
+			m.success = ""
 			if err := m.repo.StashDrop(stash.Index); err != nil {
 				m.err = err.Error()
 			} else {
+				m.success = "Stash dropped"
 				m.refreshStashes()
 			}
 		}
@@ -161,6 +170,7 @@ func (m *StashModal) updateCreateMode(msg tea.KeyMsg) (Modal, tea.Cmd) {
 		m.mode = StashModeList
 		m.messageInput.Reset()
 		m.err = ""
+		m.success = "Stash created successfully"
 		return m, nil
 	}
 
@@ -259,16 +269,18 @@ func (m *StashModal) renderListView() string {
 		}
 	}
 
-	var errLine string
+	var statusLine string
 	if m.err != "" {
-		errLine = "\n" + m.styles.Error.Render(m.err)
+		statusLine = "\n" + m.styles.Error.Render(m.err)
+	} else if m.success != "" {
+		statusLine = "\n" + m.styles.Success.Render(m.success)
 	}
 
 	footer := m.styles.Dim.Render("n new • p pop • a apply • d drop • enter preview • q close")
 
 	return lipgloss.JoinVertical(lipgloss.Left,
 		strings.Join(lines, "\n"),
-		errLine,
+		statusLine,
 		"",
 		footer,
 	)

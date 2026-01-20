@@ -19,10 +19,11 @@ type CommitModal struct {
 	onCommit func(string, bool) tea.Cmd
 	err      string
 	isAmend  bool
-	lastCommitMsg string
+	lastCommitMsg  string
+	lastCommitHash string
 }
 
-func NewCommitModal(styles *ui.Styles, staged []panels.FileEntry, lastCommitMsg string, onCommit func(string, bool) tea.Cmd) *CommitModal {
+func NewCommitModal(styles *ui.Styles, staged []panels.FileEntry, lastCommitMsg, lastCommitHash string, onCommit func(string, bool) tea.Cmd) *CommitModal {
 	ta := textarea.New()
 	ta.Placeholder = "Enter commit message..."
 	ta.Focus()
@@ -31,11 +32,12 @@ func NewCommitModal(styles *ui.Styles, staged []panels.FileEntry, lastCommitMsg 
 	ta.SetHeight(5)
 
 	return &CommitModal{
-		styles:        styles,
-		textarea:      ta,
-		staged:        staged,
-		onCommit:      onCommit,
-		lastCommitMsg: lastCommitMsg,
+		styles:         styles,
+		textarea:       ta,
+		staged:         staged,
+		onCommit:       onCommit,
+		lastCommitMsg:  lastCommitMsg,
+		lastCommitHash: lastCommitHash,
 	}
 }
 
@@ -95,7 +97,15 @@ func (m *CommitModal) View() string {
 
 	var amendWarning string
 	if m.isAmend {
-		amendWarning = "\n" + m.styles.Warning.Render("⚠ AMEND: This will rewrite history")
+		hashInfo := ""
+		if m.lastCommitHash != "" {
+			shortHash := m.lastCommitHash
+			if len(shortHash) > 7 {
+				shortHash = shortHash[:7]
+			}
+			hashInfo = fmt.Sprintf(" (commit %s)", shortHash)
+		}
+		amendWarning = "\n" + m.styles.Warning.Render("⚠ AMEND"+hashInfo+": This will rewrite history")
 	}
 
 	var errLine string

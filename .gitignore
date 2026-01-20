@@ -46,3 +46,6 @@ config.yaml
 *.tmp
 *.bak
 *.log
+
+# Tool-specific directories
+.vecgrep/

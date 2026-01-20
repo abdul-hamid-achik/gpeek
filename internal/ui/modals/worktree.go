@@ -16,6 +16,7 @@ type WorktreeMode int
 const (
 	WorktreeModeList WorktreeMode = iota
 	WorktreeModeCreate
+	WorktreeModeConfirmDelete
 )
 
 type WorktreeModal struct {
@@ -26,10 +27,14 @@ type WorktreeModal struct {
 	cursor    int
 	repo      *git.Repository
 
-	pathInput   textinput.Model
-	branchInput textinput.Model
+	pathInput    textinput.Model
+	branchInput  textinput.Model
 	focusedInput int
-	err        string
+	err          string
+
+	// Confirmation state
+	confirmPath    string
+	confirmFocused int // 0 = Yes, 1 = No
 }
 
 func NewWorktreeModal(styles *ui.Styles, worktrees []git.Worktree, repo *git.Repository) *WorktreeModal {
@@ -53,6 +58,47 @@ func NewWorktreeModal(styles *ui.Styles, worktrees []git.Worktree, repo *git.Rep
 func (m *WorktreeModal) Update(msg tea.Msg) (Modal, tea.Cmd) {
 	switch msg := msg.(type) {
 	case tea.KeyMsg:
+		// Handle confirmation mode separately
+		if m.mode == WorktreeModeConfirmDelete {
+			switch msg.String() {
+			case "esc", "n", "N":
+				m.mode = WorktreeModeList
+				m.confirmPath = ""
+				return m, nil
+			case "y", "Y":
+				if err := m.repo.RemoveWorktree(m.confirmPath); err != nil {
+					m.err = err.Error()
+				} else {
+					m.worktrees, _ = m.repo.ListWorktrees()
+					if m.cursor >= len(m.worktrees) && m.cursor > 0 {
+						m.cursor--
+					}
+				}
+				m.mode = WorktreeModeList
+				m.confirmPath = ""
+				return m, nil
+			case "enter":
+				if m.confirmFocused == 0 {
+					// Yes selected
+					if err := m.repo.RemoveWorktree(m.confirmPath); err != nil {
+						m.err = err.Error()
+					} else {
+						m.worktrees, _ = m.repo.ListWorktrees()
+						if m.cursor >= len(m.worktrees) && m.cursor > 0 {
+							m.cursor--
+						}
+					}
+				}
+				m.mode = WorktreeModeList
+				m.confirmPath = ""
+				return m, nil
+			case "tab", "left", "right", "h", "l":
+				m.confirmFocused = 1 - m.confirmFocused
+				return m, nil
+			}
+			return m, nil
+		}
+
 		switch msg.String() {
 		case "esc":
 			if m.mode == WorktreeModeCreate {
@@ -77,14 +123,10 @@ func (m *WorktreeModal) Update(msg tea.Msg) (Modal, tea.Cmd) {
 		case "d":
 			if m.mode == WorktreeModeList && len(m.worktrees) > 0 {
 				wt := m.worktrees[m.cursor]
-				if err := m.repo.RemoveWorktree(wt.Path); err != nil {
-					m.err = err.Error()
-				} else {
-					m.worktrees, _ = m.repo.ListWorktrees()
-					if m.cursor >= len(m.worktrees) && m.cursor > 0 {
-						m.cursor--
-					}
-				}
+				m.confirmPath = wt.Path
+				m.confirmFocused = 1 // Default to "No"
+				m.mode = WorktreeModeConfirmDelete
+				m.err = ""
 				return m, nil
 			}
 
@@ -149,13 +191,18 @@ func (m *WorktreeModal) Update(msg tea.Msg) (Modal, tea.Cmd) {
 }
 
 func (m *WorktreeModal) View() string {
-	title := m.styles.ModalTitle.Render(" Worktrees ")
-
+	var title string
 	var body string
 
-	if m.mode == WorktreeModeCreate {
+	switch m.mode {
+	case WorktreeModeCreate:
+		title = m.styles.ModalTitle.Render(" New Worktree ")
 		body = m.renderCreateView()
-	} else {
+	case WorktreeModeConfirmDelete:
+		title = m.styles.ModalTitle.Render(" Delete Worktree ")
+		body = m.renderConfirmDeleteView()
+	default:
+		title = m.styles.ModalTitle.Render(" Worktrees ")
 		body = m.renderListView()
 	}
 
@@ -240,6 +287,35 @@ func (m *WorktreeModal) renderCreateView() string {
 		branchLabel,
 		m.branchInput.View(),
 		errLine,
+		"",
+		footer,
+	)
+}
+
+func (m *WorktreeModal) renderConfirmDeleteView() string {
+	message := fmt.Sprintf("Delete worktree '%s'?\n\nThis cannot be undone.", m.confirmPath)
+	messageView := m.styles.Base.Render(message)
+
+	yesStyle := m.styles.Dim
+	noStyle := m.styles.Dim
+
+	if m.confirmFocused == 0 {
+		yesStyle = m.styles.ListItemSelected
+	} else {
+		noStyle = m.styles.ListItemSelected
+	}
+
+	yes := yesStyle.Padding(0, 2).Render("Yes")
+	no := noStyle.Padding(0, 2).Render("No")
+
+	buttons := lipgloss.JoinHorizontal(lipgloss.Center, yes, "  ", no)
+
+	footer := m.styles.Dim.Render("y/n to confirm • Tab to switch • Esc to cancel")
+
+	return lipgloss.JoinVertical(lipgloss.Center,
+		messageView,
+		"",
+		buttons,
 		"",
 		footer,
 	)

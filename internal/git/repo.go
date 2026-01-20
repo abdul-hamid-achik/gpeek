@@ -11,10 +11,11 @@ import (
 var ErrNotARepository = errors.New("not a git repository")
 
 type Repository struct {
-	repo     *gogit.Repository
-	path     string
-	name     string
-	worktree *gogit.Worktree
+	repo          *gogit.Repository
+	path          string
+	name          string
+	worktree      *gogit.Worktree
+	defaultRemote string
 }
 
 func Open(path string) (*Repository, error) {
@@ -43,12 +44,14 @@ func Open(path string) (*Repository, error) {
 		name = filepath.Base(filepath.Dir(gitDir))
 	}
 
-	return &Repository{
+	r := &Repository{
 		repo:     repo,
 		path:     absPath,
 		name:     name,
 		worktree: wt,
-	}, nil
+	}
+	r.defaultRemote = r.detectDefaultRemote()
+	return r, nil
 }
 
 func findGitDir(path string) (string, error) {
@@ -79,4 +82,35 @@ func (r *Repository) Path() string {
 
 func (r *Repository) IsValid() bool {
 	return r.repo != nil
+}
+
+// DefaultRemote returns the default remote name (usually "origin")
+func (r *Repository) DefaultRemote() string {
+	if r.defaultRemote == "" {
+		return "origin"
+	}
+	return r.defaultRemote
+}
+
+// SetDefaultRemote sets the default remote name
+func (r *Repository) SetDefaultRemote(name string) {
+	r.defaultRemote = name
+}
+
+// detectDefaultRemote tries to find the best default remote
+func (r *Repository) detectDefaultRemote() string {
+	remotes, err := r.repo.Remotes()
+	if err != nil || len(remotes) == 0 {
+		return "origin"
+	}
+
+	// Prefer "origin" if it exists
+	for _, remote := range remotes {
+		if remote.Config().Name == "origin" {
+			return "origin"
+		}
+	}
+
+	// Otherwise use the first remote
+	return remotes[0].Config().Name
 }

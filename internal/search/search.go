@@ -36,6 +36,7 @@ type Matcher struct {
 	caseSensitive bool
 	smartCase     bool
 	regex         *regexp.Regexp
+	regexErr      error
 }
 
 // NewMatcher creates a new matcher with the given options
@@ -64,10 +65,15 @@ func NewMatcher(pattern string, mode MatchMode, caseSensitive, smartCase bool) *
 		if !m.caseSensitive {
 			flags = "(?i)"
 		}
-		m.regex, _ = regexp.Compile(flags + pattern)
+		m.regex, m.regexErr = regexp.Compile(flags + pattern)
 	}
 
 	return m
+}
+
+// Error returns any regex compilation error
+func (m *Matcher) Error() error {
+	return m.regexErr
 }
 
 // Match tests if the input string matches the pattern

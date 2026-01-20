@@ -58,9 +58,10 @@ type KeyConfig struct {
 }
 
 type GitConfig struct {
-	AutoFetch         bool `yaml:"auto_fetch"`
-	AutoFetchInterval int  `yaml:"auto_fetch_interval"`
-	SignCommits       bool `yaml:"sign_commits"`
+	AutoFetch         bool   `yaml:"auto_fetch"`
+	AutoFetchInterval int    `yaml:"auto_fetch_interval"`
+	SignCommits       bool   `yaml:"sign_commits"`
+	DefaultRemote     string `yaml:"default_remote"`
 }
 
 type GitHubConfig struct {

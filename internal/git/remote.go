@@ -9,7 +9,7 @@ import (
 
 func (r *Repository) Fetch() error {
 	err := r.repo.Fetch(&gogit.FetchOptions{
-		RemoteName: "origin",
+		RemoteName: r.DefaultRemote(),
 	})
 	if err == gogit.NoErrAlreadyUpToDate {
 		return nil
@@ -24,7 +24,7 @@ func (r *Repository) Pull() error {
 	}
 
 	err = wt.Pull(&gogit.PullOptions{
-		RemoteName: "origin",
+		RemoteName: r.DefaultRemote(),
 	})
 	if err == gogit.NoErrAlreadyUpToDate {
 		return nil
@@ -34,7 +34,7 @@ func (r *Repository) Pull() error {
 
 func (r *Repository) Push() error {
 	return r.repo.Push(&gogit.PushOptions{
-		RemoteName: "origin",
+		RemoteName: r.DefaultRemote(),
 	})
 }
 
@@ -76,7 +76,7 @@ func (r *Repository) GetAheadBehind() (ahead, behind int, err error) {
 
 	branchName := head.Name().Short()
 
-	remoteBranch, err := r.repo.Reference(plumbing.ReferenceName("refs/remotes/origin/"+branchName), true)
+	remoteBranch, err := r.repo.Reference(plumbing.ReferenceName("refs/remotes/"+r.DefaultRemote()+"/"+branchName), true)
 	if err != nil {
 		return 0, 0, nil
 	}

@@ -64,10 +64,11 @@ func (r *Repository) ListRemoteBranches() ([]Branch, error) {
 		return nil, err
 	}
 
+	defaultRemote := r.DefaultRemote()
 	err = refs.ForEach(func(ref *plumbing.Reference) error {
 		if ref.Name().IsRemote() {
 			name := ref.Name().Short()
-			name = strings.TrimPrefix(name, "origin/")
+			name = strings.TrimPrefix(name, defaultRemote+"/")
 			branches = append(branches, Branch{
 				Name:     name,
 				Hash:     ref.Hash().String(),
