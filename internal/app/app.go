@@ -67,6 +67,10 @@ type gitDiffMsg struct {
 	diff string
 	err  error
 }
+type gitTagsMsg struct {
+	tags []git.Tag
+	err  error
+}
 
 func New(repoPath string) (*Model, error) {
 	repo, err := git.Open(repoPath)
@@ -100,6 +104,7 @@ func (m *Model) Init() tea.Cmd {
 		m.refreshStatus(),
 		m.refreshBranches(),
 		m.refreshCommits(),
+		m.refreshTags(),
 	)
 }
 
@@ -266,9 +271,16 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		case key.Matches(msg, m.keys.Commit):
 			staged := m.filesPanel.StagedFiles()
 			if len(staged) > 0 {
-				m.activeModal = modals.NewCommitModal(m.styles, staged, func(message string) tea.Cmd {
+				lastMsg, _ := m.repo.GetLastCommitMessage()
+				m.activeModal = modals.NewCommitModal(m.styles, staged, lastMsg, func(message string, isAmend bool) tea.Cmd {
 					return func() tea.Msg {
-						if err := m.repo.Commit(message); err != nil {
+						var err error
+						if isAmend {
+							err = m.repo.AmendCommit(message)
+						} else {
+							err = m.repo.Commit(message)
+						}
+						if err != nil {
 							return gitStatusMsg{err: err}
 						}
 						return refreshMsg{}
@@ -390,6 +402,22 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			worktrees, _ := m.repo.ListWorktrees()
 			m.activeModal = modals.NewWorktreeModal(m.styles, worktrees, m.repo)
 
+		case key.Matches(msg, m.keys.Stash):
+			stashes, _ := m.repo.StashList()
+			m.activeModal = modals.NewStashModal(m.styles, stashes, m.repo, m.width-8, m.height-8)
+
+		case key.Matches(msg, m.keys.Blame):
+			if m.focused == ui.PanelFiles {
+				if file := m.filesPanel.SelectedFile(); file != nil {
+					lines, err := m.repo.BlameFile(file.Path)
+					if err != nil {
+						m.setStatus("Cannot blame file: "+err.Error(), true)
+					} else {
+						m.activeModal = modals.NewBlameModal(m.styles, file.Path, lines, m.repo, m.width-4, m.height-4)
+					}
+				}
+			}
+
 		case key.Matches(msg, m.keys.GlobalSearch):
 			// Open global search modal
 			worktrees, _ := m.repo.ListWorktrees()
@@ -465,11 +493,17 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			m.previewPanel.SetDiff(msg.diff)
 		}
 
+	case gitTagsMsg:
+		if msg.err == nil {
+			m.branchesPanel.SetTags(msg.tags)
+		}
+
 	case refreshMsg:
 		cmds = append(cmds,
 			m.refreshStatus(),
 			m.refreshBranches(),
 			m.refreshCommits(),
+			m.refreshTags(),
 		)
 
 	case operationDoneMsg:
@@ -482,6 +516,7 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				m.refreshStatus(),
 				m.refreshBranches(),
 				m.refreshCommits(),
+				m.refreshTags(),
 			)
 		}
 
@@ -608,12 +643,12 @@ func (m *Model) getPanelHints() string {
 	case ui.PanelFiles:
 		return m.styles.HelpKey.Render("s") + m.styles.HelpDesc.Render(" stage  ") +
 			m.styles.HelpKey.Render("u") + m.styles.HelpDesc.Render(" unstage  ") +
-			m.styles.HelpKey.Render("x") + m.styles.HelpDesc.Render(" discard  ") +
+			m.styles.HelpKey.Render("b") + m.styles.HelpDesc.Render(" blame  ") +
 			m.styles.HelpKey.Render("?") + m.styles.HelpDesc.Render(" help")
 	case ui.PanelBranches:
 		return m.styles.HelpKey.Render("enter") + m.styles.HelpDesc.Render(" checkout  ") +
 			m.styles.HelpKey.Render("n") + m.styles.HelpDesc.Render(" new  ") +
-			m.styles.HelpKey.Render("d") + m.styles.HelpDesc.Render(" delete  ") +
+			m.styles.HelpKey.Render("t") + m.styles.HelpDesc.Render(" tags  ") +
 			m.styles.HelpKey.Render("?") + m.styles.HelpDesc.Render(" help")
 	case ui.PanelCommits:
 		return m.styles.HelpKey.Render("enter") + m.styles.HelpDesc.Render(" view diff  ") +
@@ -733,6 +768,13 @@ func (m *Model) refreshCommits() tea.Cmd {
 	return func() tea.Msg {
 		commits, err := m.repo.Log(100)
 		return gitCommitsMsg{commits: commits, err: err}
+	}
+}
+
+func (m *Model) refreshTags() tea.Cmd {
+	return func() tea.Msg {
+		tags, err := m.repo.ListTags()
+		return gitTagsMsg{tags: tags, err: err}
 	}
 }
 

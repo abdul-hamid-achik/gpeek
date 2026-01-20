@@ -40,6 +40,9 @@ type KeyMap struct {
 	SearchNext   key.Binding
 	SearchPrev   key.Binding
 	GitConfig    key.Binding
+	// New feature bindings
+	Stash     key.Binding
+	Blame     key.Binding
 }
 
 func DefaultKeyMap() KeyMap {
@@ -188,6 +191,14 @@ func DefaultKeyMap() KeyMap {
 			key.WithKeys("C"),
 			key.WithHelp("C", "git config"),
 		),
+		Stash: key.NewBinding(
+			key.WithKeys("S"),
+			key.WithHelp("S", "stash"),
+		),
+		Blame: key.NewBinding(
+			key.WithKeys("b"),
+			key.WithHelp("b", "blame"),
+		),
 	}
 }
 
@@ -202,8 +213,8 @@ func (k KeyMap) FullHelp() [][]key.Binding {
 		{k.Stage, k.Unstage, k.Discard, k.Commit},
 		{k.Push, k.Pull, k.Fetch},
 		{k.Checkout, k.NewBranch, k.DeleteBranch},
-		{k.DiffMode, k.ShowCommit, k.Worktree, k.Refresh},
+		{k.DiffMode, k.ShowCommit, k.Worktree, k.Stash, k.Blame},
 		{k.FilterPanel, k.GlobalSearch, k.SearchNext, k.SearchPrev},
-		{k.GitConfig, k.Help, k.Quit},
+		{k.GitConfig, k.Refresh, k.Help, k.Quit},
 	}
 }

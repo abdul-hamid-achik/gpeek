@@ -28,6 +28,32 @@ func (r *Repository) Commit(message string) error {
 	return err
 }
 
+func (r *Repository) AmendCommit(message string) error {
+	wt, err := r.repo.Worktree()
+	if err != nil {
+		return err
+	}
+
+	_, err = wt.Commit(message, &gogit.CommitOptions{
+		Amend: true,
+	})
+	return err
+}
+
+func (r *Repository) GetLastCommitMessage() (string, error) {
+	head, err := r.repo.Head()
+	if err != nil {
+		return "", err
+	}
+
+	commit, err := r.repo.CommitObject(head.Hash())
+	if err != nil {
+		return "", err
+	}
+
+	return commit.Message, nil
+}
+
 func (r *Repository) Log(limit int) ([]Commit, error) {
 	var commits []Commit
 

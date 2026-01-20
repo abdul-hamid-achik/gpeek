@@ -25,6 +25,11 @@ type BranchesPanel struct {
 	worktreeCursor    int
 	inWorktreeSection bool
 
+	tags          []git.Tag
+	showTags      bool
+	tagCursor     int
+	inTagSection  bool
+
 	// Filter support
 	filterBar *uisearch.FilterBar
 }
@@ -67,6 +72,10 @@ func (p *BranchesPanel) applyFilter() {
 
 func (p *BranchesPanel) SetWorktrees(worktrees []git.Worktree) {
 	p.worktrees = worktrees
+}
+
+func (p *BranchesPanel) SetTags(tags []git.Tag) {
+	p.tags = tags
 }
 
 func (p *BranchesPanel) SetSize(width, height int) {
@@ -115,6 +124,10 @@ func (p *BranchesPanel) Update(msg tea.Msg) tea.Cmd {
 		case "W":
 			if len(p.worktrees) > 0 {
 				p.showWorktrees = !p.showWorktrees
+			}
+		case "t":
+			if len(p.tags) > 0 {
+				p.showTags = !p.showTags
 			}
 		case "ctrl+d":
 			for i := 0; i < p.height/2; i++ {
@@ -165,6 +178,17 @@ func (p *BranchesPanel) View() string {
 
 		for i, w := range p.worktrees {
 			line := p.renderWorktree(w, i == p.worktreeCursor && p.inWorktreeSection)
+			lines = append(lines, line)
+		}
+	}
+
+	if p.showTags && len(p.tags) > 0 {
+		lines = append(lines, "")
+		header := p.styles.Bold.Render(fmt.Sprintf("Tags (%d)", len(p.tags)))
+		lines = append(lines, header)
+
+		for i, t := range p.tags {
+			line := p.renderTag(t, i == p.tagCursor && p.inTagSection)
 			lines = append(lines, line)
 		}
 	}
@@ -244,30 +268,85 @@ func (p *BranchesPanel) renderWorktree(w git.Worktree, selected bool) string {
 	return p.styles.ListItem.Render(line)
 }
 
+func (p *BranchesPanel) renderTag(t git.Tag, selected bool) string {
+	prefix := "  "
+	if selected && p.focused {
+		prefix = "> "
+	}
+
+	icon := "○"
+	if t.IsAnnotated {
+		icon = "●"
+	}
+
+	line := fmt.Sprintf("%s %s %s", prefix, icon, t.Name)
+	if t.Hash != "" {
+		line += fmt.Sprintf(" (%s)", t.Hash[:7])
+	}
+
+	if selected && p.focused {
+		return p.styles.ListItemSelected.Render(line)
+	}
+
+	return p.styles.ListItem.Render(line)
+}
+
 func (p *BranchesPanel) moveDown() {
-	if !p.inWorktreeSection {
+	if p.inTagSection {
+		// In tags section
+		if p.tagCursor < len(p.tags)-1 {
+			p.tagCursor++
+		}
+	} else if p.inWorktreeSection {
+		// In worktrees section
+		if p.worktreeCursor < len(p.worktrees)-1 {
+			p.worktreeCursor++
+		} else if p.showTags && len(p.tags) > 0 {
+			p.inWorktreeSection = false
+			p.inTagSection = true
+			p.tagCursor = 0
+		}
+	} else {
+		// In branches section
 		if p.cursor < len(p.filteredBranches)-1 {
 			p.cursor++
 		} else if p.showWorktrees && len(p.worktrees) > 0 {
 			p.inWorktreeSection = true
 			p.worktreeCursor = 0
-		}
-	} else {
-		if p.worktreeCursor < len(p.worktrees)-1 {
-			p.worktreeCursor++
+		} else if p.showTags && len(p.tags) > 0 {
+			p.inTagSection = true
+			p.tagCursor = 0
 		}
 	}
 }
 
 func (p *BranchesPanel) moveUp() {
-	if p.inWorktreeSection {
+	if p.inTagSection {
+		// In tags section
+		if p.tagCursor > 0 {
+			p.tagCursor--
+		} else if p.showWorktrees && len(p.worktrees) > 0 {
+			p.inTagSection = false
+			p.inWorktreeSection = true
+			p.worktreeCursor = len(p.worktrees) - 1
+		} else {
+			p.inTagSection = false
+			if len(p.filteredBranches) > 0 {
+				p.cursor = len(p.filteredBranches) - 1
+			}
+		}
+	} else if p.inWorktreeSection {
+		// In worktrees section
 		if p.worktreeCursor > 0 {
 			p.worktreeCursor--
 		} else {
 			p.inWorktreeSection = false
-			p.cursor = len(p.filteredBranches) - 1
+			if len(p.filteredBranches) > 0 {
+				p.cursor = len(p.filteredBranches) - 1
+			}
 		}
 	} else {
+		// In branches section
 		if p.cursor > 0 {
 			p.cursor--
 		}
@@ -275,14 +354,21 @@ func (p *BranchesPanel) moveUp() {
 }
 
 func (p *BranchesPanel) getCursorLineIndex() int {
-	if !p.inWorktreeSection {
-		return 1 + p.cursor
+	if p.inTagSection {
+		idx := 1 + len(p.filteredBranches)
+		if p.showWorktrees && len(p.worktrees) > 0 {
+			idx += 2 + len(p.worktrees)
+		}
+		return idx + 2 + p.tagCursor
 	}
-	return 1 + len(p.filteredBranches) + 2 + p.worktreeCursor
+	if p.inWorktreeSection {
+		return 1 + len(p.filteredBranches) + 2 + p.worktreeCursor
+	}
+	return 1 + p.cursor
 }
 
 func (p *BranchesPanel) SelectedBranch() *git.Branch {
-	if p.inWorktreeSection || len(p.filteredBranches) == 0 {
+	if p.inWorktreeSection || p.inTagSection || len(p.filteredBranches) == 0 {
 		return nil
 	}
 	if p.cursor < len(p.filteredBranches) {
@@ -299,6 +385,20 @@ func (p *BranchesPanel) SelectedWorktree() *git.Worktree {
 		return &p.worktrees[p.worktreeCursor]
 	}
 	return nil
+}
+
+func (p *BranchesPanel) SelectedTag() *git.Tag {
+	if !p.inTagSection || len(p.tags) == 0 {
+		return nil
+	}
+	if p.tagCursor < len(p.tags) {
+		return &p.tags[p.tagCursor]
+	}
+	return nil
+}
+
+func (p *BranchesPanel) InTagSection() bool {
+	return p.inTagSection
 }
 
 // IsFiltering returns true if the filter bar is active

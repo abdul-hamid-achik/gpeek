@@ -16,11 +16,13 @@ type CommitModal struct {
 	styles   *ui.Styles
 	textarea textarea.Model
 	staged   []panels.FileEntry
-	onCommit func(string) tea.Cmd
+	onCommit func(string, bool) tea.Cmd
 	err      string
+	isAmend  bool
+	lastCommitMsg string
 }
 
-func NewCommitModal(styles *ui.Styles, staged []panels.FileEntry, onCommit func(string) tea.Cmd) *CommitModal {
+func NewCommitModal(styles *ui.Styles, staged []panels.FileEntry, lastCommitMsg string, onCommit func(string, bool) tea.Cmd) *CommitModal {
 	ta := textarea.New()
 	ta.Placeholder = "Enter commit message..."
 	ta.Focus()
@@ -29,10 +31,11 @@ func NewCommitModal(styles *ui.Styles, staged []panels.FileEntry, onCommit func(
 	ta.SetHeight(5)
 
 	return &CommitModal{
-		styles:   styles,
-		textarea: ta,
-		staged:   staged,
-		onCommit: onCommit,
+		styles:        styles,
+		textarea:      ta,
+		staged:        staged,
+		onCommit:      onCommit,
+		lastCommitMsg: lastCommitMsg,
 	}
 }
 
@@ -42,6 +45,14 @@ func (m *CommitModal) Update(msg tea.Msg) (Modal, tea.Cmd) {
 		switch msg.String() {
 		case "esc":
 			return nil, nil
+		case "ctrl+a":
+			// Toggle amend mode
+			m.isAmend = !m.isAmend
+			if m.isAmend && m.lastCommitMsg != "" && strings.TrimSpace(m.textarea.Value()) == "" {
+				// Pre-fill with last commit message
+				m.textarea.SetValue(strings.TrimSpace(m.lastCommitMsg))
+			}
+			return m, nil
 		case "ctrl+s", "ctrl+enter":
 			message := strings.TrimSpace(m.textarea.Value())
 			if message == "" {
@@ -49,7 +60,7 @@ func (m *CommitModal) Update(msg tea.Msg) (Modal, tea.Cmd) {
 				return m, nil
 			}
 			if m.onCommit != nil {
-				return nil, m.onCommit(message)
+				return nil, m.onCommit(message, m.isAmend)
 			}
 			return nil, nil
 		}
@@ -61,7 +72,11 @@ func (m *CommitModal) Update(msg tea.Msg) (Modal, tea.Cmd) {
 }
 
 func (m *CommitModal) View() string {
-	title := m.styles.ModalTitle.Render(" Commit ")
+	titleText := " Commit "
+	if m.isAmend {
+		titleText = " Amend Commit "
+	}
+	title := m.styles.ModalTitle.Render(titleText)
 
 	var stagedList []string
 	for _, f := range m.staged {
@@ -78,15 +93,21 @@ func (m *CommitModal) View() string {
 
 	messageLabel := m.styles.Bold.Render("Commit message:")
 
+	var amendWarning string
+	if m.isAmend {
+		amendWarning = "\n" + m.styles.Warning.Render("⚠ AMEND: This will rewrite history")
+	}
+
 	var errLine string
 	if m.err != "" {
 		errLine = "\n" + m.styles.Error.Render(m.err)
 	}
 
-	footer := m.styles.Dim.Render("Ctrl+S to commit • Esc to cancel")
+	footer := m.styles.Dim.Render("Ctrl+S to commit • Ctrl+A to toggle amend • Esc to cancel")
 
 	body := lipgloss.JoinVertical(lipgloss.Left,
 		stagedSection,
+		amendWarning,
 		"",
 		messageLabel,
 		m.textarea.View(),
