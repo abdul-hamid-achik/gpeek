@@ -86,8 +86,32 @@ func (r *Repository) stagedDiff(path string, headTree *object.Tree) (string, err
 func (r *Repository) workingDiff(path string, headTree *object.Tree) (string, error) {
 	var oldContent string
 
-	if f, err := headTree.File(path); err == nil {
-		oldContent, _ = f.Contents()
+	// First try to get content from INDEX (staged version)
+	// This ensures we compare INDEX → WORKING TREE for unstaged changes
+	idx, err := r.repo.Storer.Index()
+	if err == nil {
+		for _, entry := range idx.Entries {
+			if entry.Name == path {
+				blob, err := r.repo.BlobObject(entry.Hash)
+				if err == nil {
+					reader, err := blob.Reader()
+					if err == nil {
+						buf := new(bytes.Buffer)
+						_, _ = buf.ReadFrom(reader)
+						oldContent = buf.String()
+						_ = reader.Close()
+					}
+				}
+				break
+			}
+		}
+	}
+
+	// If not in INDEX, fall back to HEAD
+	if oldContent == "" {
+		if f, err := headTree.File(path); err == nil {
+			oldContent, _ = f.Contents()
+		}
 	}
 
 	wt, err := r.repo.Worktree()
@@ -207,11 +231,23 @@ func splitLines(s string) []string {
 	return lines
 }
 
-func computeHunks(oldLines, newLines []string) []string {
-	var hunks []string
+// diffOp represents a single diff operation
+type diffOp struct {
+	kind   int    // opEqual, opAdd, opDelete
+	line   string
+	oldIdx int // 1-based line number in old file (-1 for additions)
+	newIdx int // 1-based line number in new file (-1 for deletions)
+}
 
+const (
+	opEqual  = 0
+	opAdd    = 1
+	opDelete = 2
+)
+
+func computeHunks(oldLines, newLines []string) []string {
 	if len(oldLines) == 0 && len(newLines) == 0 {
-		return hunks
+		return nil
 	}
 
 	if len(oldLines) == 0 {
@@ -220,8 +256,7 @@ func computeHunks(oldLines, newLines []string) []string {
 		for _, line := range newLines {
 			hunk.WriteString("+" + line + "\n")
 		}
-		hunks = append(hunks, hunk.String())
-		return hunks
+		return []string{hunk.String()}
 	}
 
 	if len(newLines) == 0 {
@@ -230,37 +265,28 @@ func computeHunks(oldLines, newLines []string) []string {
 		for _, line := range oldLines {
 			hunk.WriteString("-" + line + "\n")
 		}
-		hunks = append(hunks, hunk.String())
-		return hunks
+		return []string{hunk.String()}
 	}
 
-	lcs := longestCommonSubsequence(oldLines, newLines)
-	_ = lcs
+	// Compute edit script using LCS
+	ops := computeEditScript(oldLines, newLines)
 
-	var hunk bytes.Buffer
-	hunk.WriteString(fmt.Sprintf("@@ -1,%d +1,%d @@\n", len(oldLines), len(newLines)))
+	// Find change regions (sequences of non-equal operations)
+	regions := findChangeRegions(ops)
 
-	oldIdx, newIdx := 0, 0
-	for oldIdx < len(oldLines) || newIdx < len(newLines) {
-		if oldIdx < len(oldLines) && newIdx < len(newLines) && oldLines[oldIdx] == newLines[newIdx] {
-			hunk.WriteString(" " + oldLines[oldIdx] + "\n")
-			oldIdx++
-			newIdx++
-		} else if newIdx < len(newLines) && (oldIdx >= len(oldLines) || !contains(oldLines[oldIdx:], newLines[newIdx])) {
-			hunk.WriteString("+" + newLines[newIdx] + "\n")
-			newIdx++
-		} else if oldIdx < len(oldLines) {
-			hunk.WriteString("-" + oldLines[oldIdx] + "\n")
-			oldIdx++
-		}
+	if len(regions) == 0 {
+		return nil // No changes
 	}
 
-	hunks = append(hunks, hunk.String())
-	return hunks
+	// Build hunks with 3 lines of context
+	return buildHunksWithContext(ops, regions, 3)
 }
 
-func longestCommonSubsequence(a, b []string) []string {
-	m, n := len(a), len(b)
+// computeEditScript generates a sequence of diff operations using LCS
+func computeEditScript(oldLines, newLines []string) []diffOp {
+	m, n := len(oldLines), len(newLines)
+
+	// Build LCS table
 	dp := make([][]int, m+1)
 	for i := range dp {
 		dp[i] = make([]int, n+1)
@@ -268,7 +294,7 @@ func longestCommonSubsequence(a, b []string) []string {
 
 	for i := 1; i <= m; i++ {
 		for j := 1; j <= n; j++ {
-			if a[i-1] == b[j-1] {
+			if oldLines[i-1] == newLines[j-1] {
 				dp[i][j] = dp[i-1][j-1] + 1
 			} else {
 				dp[i][j] = max(dp[i-1][j], dp[i][j-1])
@@ -276,37 +302,188 @@ func longestCommonSubsequence(a, b []string) []string {
 		}
 	}
 
-	var lcs []string
+	// Backtrack to produce edit script
+	var ops []diffOp
 	i, j := m, n
-	for i > 0 && j > 0 {
-		if a[i-1] == b[j-1] {
-			lcs = append([]string{a[i-1]}, lcs...)
+
+	for i > 0 || j > 0 {
+		if i > 0 && j > 0 && oldLines[i-1] == newLines[j-1] {
+			ops = append(ops, diffOp{kind: opEqual, line: oldLines[i-1], oldIdx: i, newIdx: j})
 			i--
 			j--
-		} else if dp[i-1][j] > dp[i][j-1] {
-			i--
+		} else if j > 0 && (i == 0 || dp[i][j-1] >= dp[i-1][j]) {
+			ops = append(ops, diffOp{kind: opAdd, line: newLines[j-1], oldIdx: -1, newIdx: j})
+			j--
 		} else {
-			j--
+			ops = append(ops, diffOp{kind: opDelete, line: oldLines[i-1], oldIdx: i, newIdx: -1})
+			i--
 		}
 	}
 
-	return lcs
+	// Reverse to get forward order
+	for left, right := 0, len(ops)-1; left < right; left, right = left+1, right-1 {
+		ops[left], ops[right] = ops[right], ops[left]
+	}
+
+	return ops
 }
 
-func contains(slice []string, item string) bool {
-	for _, s := range slice {
-		if s == item {
-			return true
+// findChangeRegions finds contiguous sequences of non-equal operations
+// Returns slice of [start, end) indices into ops
+func findChangeRegions(ops []diffOp) [][2]int {
+	var regions [][2]int
+	inChange := false
+	start := 0
+
+	for i, op := range ops {
+		if op.kind != opEqual {
+			if !inChange {
+				start = i
+				inChange = true
+			}
+		} else {
+			if inChange {
+				regions = append(regions, [2]int{start, i})
+				inChange = false
+			}
 		}
 	}
-	return false
+
+	if inChange {
+		regions = append(regions, [2]int{start, len(ops)})
+	}
+
+	return regions
 }
 
-func max(a, b int) int {
-	if a > b {
-		return a
+// buildHunksWithContext creates hunks with context lines, merging nearby regions
+func buildHunksWithContext(ops []diffOp, regions [][2]int, contextLines int) []string {
+	var hunks []string
+
+	// Merge regions that are close together (within 2*contextLines)
+	merged := mergeCloseRegions(regions, ops, contextLines)
+
+	for _, region := range merged {
+		hunk := buildSingleHunk(ops, region[0], region[1], contextLines)
+		if hunk != "" {
+			hunks = append(hunks, hunk)
+		}
 	}
-	return b
+
+	return hunks
+}
+
+// mergeCloseRegions merges change regions that would have overlapping context
+func mergeCloseRegions(regions [][2]int, ops []diffOp, contextLines int) [][2]int {
+	if len(regions) == 0 {
+		return nil
+	}
+
+	merged := [][2]int{regions[0]}
+
+	for i := 1; i < len(regions); i++ {
+		last := &merged[len(merged)-1]
+		curr := regions[i]
+
+		// Count equal ops between last region end and current region start
+		equalCount := 0
+		for j := last[1]; j < curr[0]; j++ {
+			if ops[j].kind == opEqual {
+				equalCount++
+			}
+		}
+
+		// If gap is small enough, merge the regions
+		if equalCount <= 2*contextLines {
+			last[1] = curr[1]
+		} else {
+			merged = append(merged, curr)
+		}
+	}
+
+	return merged
+}
+
+// buildSingleHunk builds a single hunk for a change region with context
+func buildSingleHunk(ops []diffOp, changeStart, changeEnd, contextLines int) string {
+	// Find context boundaries
+	contextStart := changeStart
+	contextEnd := changeEnd
+
+	// Add leading context (up to contextLines equal ops before the change)
+	leadingContext := 0
+	for i := changeStart - 1; i >= 0 && leadingContext < contextLines; i-- {
+		if ops[i].kind == opEqual {
+			contextStart = i
+			leadingContext++
+		}
+	}
+
+	// Add trailing context (up to contextLines equal ops after the change)
+	trailingContext := 0
+	for i := changeEnd; i < len(ops) && trailingContext < contextLines; i++ {
+		if ops[i].kind == opEqual {
+			contextEnd = i + 1
+			trailingContext++
+		}
+	}
+
+	// Calculate line numbers for hunk header
+	var oldStart, oldCount, newStart, newCount int
+
+	// Find first old line number and first new line number
+	for i := contextStart; i < contextEnd; i++ {
+		op := ops[i]
+		if oldStart == 0 && op.oldIdx > 0 {
+			oldStart = op.oldIdx
+		}
+		if newStart == 0 && op.newIdx > 0 {
+			newStart = op.newIdx
+		}
+		if oldStart > 0 && newStart > 0 {
+			break
+		}
+	}
+
+	// If still not set, use 1 or 0
+	if oldStart == 0 {
+		oldStart = 1
+	}
+	if newStart == 0 {
+		newStart = 1
+	}
+
+	// Count lines in each file
+	for i := contextStart; i < contextEnd; i++ {
+		op := ops[i]
+		switch op.kind {
+		case opEqual:
+			oldCount++
+			newCount++
+		case opDelete:
+			oldCount++
+		case opAdd:
+			newCount++
+		}
+	}
+
+	// Build the hunk content
+	var hunk bytes.Buffer
+	hunk.WriteString(fmt.Sprintf("@@ -%d,%d +%d,%d @@\n", oldStart, oldCount, newStart, newCount))
+
+	for i := contextStart; i < contextEnd; i++ {
+		op := ops[i]
+		switch op.kind {
+		case opEqual:
+			hunk.WriteString(" " + op.line + "\n")
+		case opDelete:
+			hunk.WriteString("-" + op.line + "\n")
+		case opAdd:
+			hunk.WriteString("+" + op.line + "\n")
+		}
+	}
+
+	return hunk.String()
 }
 
 func formatPatch(patch *object.Patch) string {
