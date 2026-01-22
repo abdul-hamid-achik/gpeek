@@ -18,34 +18,59 @@ const (
 	DiffBinary
 )
 
+// String returns the string representation of DiffType
+func (t DiffType) String() string {
+	switch t {
+	case DiffContext:
+		return "context"
+	case DiffAdd:
+		return "add"
+	case DiffRemove:
+		return "remove"
+	case DiffMeta:
+		return "meta"
+	case DiffHunk:
+		return "hunk"
+	case DiffBinary:
+		return "binary"
+	default:
+		return "unknown"
+	}
+}
+
+// MarshalJSON implements json.Marshaler for DiffType
+func (t DiffType) MarshalJSON() ([]byte, error) {
+	return []byte(`"` + t.String() + `"`), nil
+}
+
 type Line struct {
-	Type      DiffType
-	Content   string
-	OldNumber int
-	NewNumber int
+	Type      DiffType `json:"type"`
+	Content   string   `json:"content"`
+	OldNumber int      `json:"old_number,omitempty"`
+	NewNumber int      `json:"new_number,omitempty"`
 }
 
 type Hunk struct {
-	OldStart  int
-	OldCount  int
-	NewStart  int
-	NewCount  int
-	Header    string
-	Lines     []Line
+	OldStart int    `json:"old_start"`
+	OldCount int    `json:"old_count"`
+	NewStart int    `json:"new_start"`
+	NewCount int    `json:"new_count"`
+	Header   string `json:"header"`
+	Lines    []Line `json:"lines"`
 }
 
 type FileDiff struct {
-	OldName  string
-	NewName  string
-	IsBinary bool
-	IsNew    bool
-	IsDelete bool
-	IsRename bool
-	Hunks    []Hunk
+	OldName  string `json:"old_name"`
+	NewName  string `json:"new_name"`
+	IsBinary bool   `json:"is_binary"`
+	IsNew    bool   `json:"is_new"`
+	IsDelete bool   `json:"is_delete"`
+	IsRename bool   `json:"is_rename"`
+	Hunks    []Hunk `json:"hunks"`
 }
 
 type Diff struct {
-	Files []FileDiff
+	Files []FileDiff `json:"files"`
 }
 
 var (

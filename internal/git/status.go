@@ -18,15 +18,44 @@ const (
 	StatusUpdatedButUnmerged
 )
 
+// String returns the string representation of FileStatus
+func (s FileStatus) String() string {
+	switch s {
+	case StatusModified:
+		return "modified"
+	case StatusAdded:
+		return "added"
+	case StatusDeleted:
+		return "deleted"
+	case StatusRenamed:
+		return "renamed"
+	case StatusCopied:
+		return "copied"
+	case StatusUntracked:
+		return "untracked"
+	case StatusIgnored:
+		return "ignored"
+	case StatusUpdatedButUnmerged:
+		return "conflict"
+	default:
+		return "unmodified"
+	}
+}
+
+// MarshalJSON implements json.Marshaler for FileStatus
+func (s FileStatus) MarshalJSON() ([]byte, error) {
+	return []byte(`"` + s.String() + `"`), nil
+}
+
 type FileEntry struct {
-	Path   string
-	Status FileStatus
+	Path   string     `json:"path"`
+	Status FileStatus `json:"status"`
 }
 
 type Status struct {
-	Staged    []FileEntry
-	Unstaged  []FileEntry
-	Untracked []string
+	Staged    []FileEntry `json:"staged"`
+	Unstaged  []FileEntry `json:"unstaged"`
+	Untracked []string    `json:"untracked"`
 }
 
 func (r *Repository) Status() (*Status, error) {

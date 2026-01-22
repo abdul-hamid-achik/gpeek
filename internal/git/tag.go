@@ -10,12 +10,12 @@ import (
 )
 
 type Tag struct {
-	Name        string
-	Hash        string
-	Message     string
-	Tagger      string
-	TaggerTime  time.Time
-	IsAnnotated bool
+	Name        string    `json:"name"`
+	Hash        string    `json:"hash"`
+	Message     string    `json:"message,omitempty"`
+	Tagger      string    `json:"tagger,omitempty"`
+	TaggerTime  time.Time `json:"tagger_time,omitempty"`
+	IsAnnotated bool      `json:"is_annotated"`
 }
 
 func (r *Repository) ListTags() ([]Tag, error) {

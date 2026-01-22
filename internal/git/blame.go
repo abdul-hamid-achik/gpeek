@@ -9,12 +9,12 @@ import (
 )
 
 type BlameLine struct {
-	LineNum int
-	Hash    string
-	Author  string
-	Email   string
-	Time    time.Time
-	Content string
+	LineNum int       `json:"line_num"`
+	Hash    string    `json:"hash,omitempty"`
+	Author  string    `json:"author,omitempty"`
+	Email   string    `json:"email,omitempty"`
+	Time    time.Time `json:"time,omitempty"`
+	Content string    `json:"content"`
 }
 
 // Blame returns line-by-line blame information for a file

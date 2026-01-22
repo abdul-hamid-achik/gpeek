@@ -11,11 +11,11 @@ import (
 )
 
 type Stash struct {
-	Index   int
-	Message string
-	Branch  string
-	Hash    string
-	Time    time.Time
+	Index   int       `json:"index"`
+	Message string    `json:"message"`
+	Branch  string    `json:"branch,omitempty"`
+	Hash    string    `json:"hash"`
+	Time    time.Time `json:"time"`
 }
 
 // StashSave saves the current changes to the stash with an optional message

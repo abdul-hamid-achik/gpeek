@@ -9,13 +9,13 @@ import (
 )
 
 type Commit struct {
-	Hash    string
-	Message string
-	Author  string
-	Email   string
-	Time    time.Time
-	IsMerge bool
-	Parents []string
+	Hash    string    `json:"hash"`
+	Message string    `json:"message"`
+	Author  string    `json:"author"`
+	Email   string    `json:"email"`
+	Time    time.Time `json:"time"`
+	IsMerge bool      `json:"is_merge"`
+	Parents []string  `json:"parents,omitempty"`
 }
 
 func (r *Repository) Commit(message string) error {

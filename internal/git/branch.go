@@ -8,11 +8,11 @@ import (
 )
 
 type Branch struct {
-	Name     string
-	Hash     string
-	IsRemote bool
-	IsCurrent bool
-	Upstream string
+	Name      string `json:"name"`
+	Hash      string `json:"hash"`
+	IsRemote  bool   `json:"is_remote"`
+	IsCurrent bool   `json:"is_current"`
+	Upstream  string `json:"upstream,omitempty"`
 }
 
 func (r *Repository) CurrentBranch() string {
