@@ -1,11 +1,10 @@
 # gpeek
 
-A terminal user interface (TUI) for code review, git visualization, and repository management.
-
-![gpeek screenshot](https://via.placeholder.com/800x500?text=gpeek+screenshot)
+Git visualization for humans and agents. A dual-mode tool providing both an interactive TUI for developers and structured JSON/MCP output for LLMs and automation.
 
 ## Features
 
+### For Humans (TUI Mode)
 - **Four-panel layout** - Files, Branches, Commits, and Preview panels
 - **Syntax-highlighted diffs** - View changes with full syntax highlighting
 - **Git operations** - Stage, unstage, commit, push, pull, fetch, and checkout
@@ -13,7 +12,13 @@ A terminal user interface (TUI) for code review, git visualization, and reposito
 - **Worktree support** - Manage multiple working directories
 - **Vim-style keybindings** - Navigate with familiar keys (j/k, g/G, Ctrl+u/d)
 - **Theme support** - Built-in themes: Nord, Dracula, Catppuccin Mocha, Gruvbox Dark
-- **Configurable** - Customize keybindings, UI options, and behavior
+
+### For Agents (CLI + MCP Mode)
+- **Structured JSON output** - All commands support `-f json` for machine-readable output
+- **MCP server** - Model Context Protocol integration for Claude and other LLMs
+- **One-call context** - `gpeek summary` provides complete repo state in a single request
+- **Semantic search** - Find commits by intent, not just keywords
+- **Smart analysis** - Conflict prediction, change summarization, risk assessment
 
 ## Installation
 
@@ -37,14 +42,202 @@ Download pre-built binaries from the [Releases](https://github.com/abdul-hamid-a
 ## Quick Start
 
 ```bash
-# Run in current directory
+# Launch interactive TUI
 gpeek
 
-# Run in specific repository
-gpeek /path/to/repo
+# CLI: Get repo status as JSON
+gpeek status -f json
+
+# CLI: Complete repo snapshot for agents
+gpeek summary -f json
+
+# Start MCP server for Claude/LLM integration
+gpeek mcp serve
 ```
 
-## Keybindings
+---
+
+## Agent & LLM Integration
+
+gpeek provides two integration methods for agents: **CLI with JSON output** and **MCP server**.
+
+### CLI Commands
+
+All commands support `--format` (`-f`) with values: `json`, `compact`, `plain`
+
+| Command | Description |
+|---------|-------------|
+| `gpeek status` | Repository status (staged, unstaged, untracked files) |
+| `gpeek diff` | Structured diffs with parsed hunks |
+| `gpeek log` | Commit history with filters |
+| `gpeek summary` | Complete repo snapshot (recommended for agents) |
+| `gpeek blame <file>` | Line-by-line attribution |
+| `gpeek branches` | Branch list with tracking info |
+| `gpeek stashes` | Stash list with details |
+| `gpeek tags` | Tag list with annotations |
+
+#### Global Flags
+
+```
+-f, --format string   Output format: json, compact, plain (default "plain")
+-C, --path string     Repository path (default ".")
+-q, --quiet           Suppress non-essential output
+```
+
+#### Example: Get Full Context in One Call
+
+```bash
+gpeek summary -f json
+```
+
+Response:
+```json
+{
+  "repository": {
+    "name": "my-project",
+    "path": "/path/to/repo",
+    "branch": "main"
+  },
+  "status": {
+    "staged": [],
+    "unstaged": [{"path": "src/app.ts", "status": "modified"}],
+    "is_clean": false
+  },
+  "recent_commits": [...],
+  "branches": {"current": "main", "local": [...]},
+  "stashes": {"count": 0, "entries": []},
+  "tags": {"count": 5, "tags": [...]}
+}
+```
+
+### MCP Server Integration
+
+Start the MCP server for direct integration with Claude or other MCP-compatible LLMs:
+
+```bash
+gpeek mcp serve
+```
+
+#### Claude Code Configuration
+
+Add to your Claude Code MCP settings (`~/.claude/claude_desktop_config.json`):
+
+```json
+{
+  "mcpServers": {
+    "gpeek": {
+      "command": "gpeek",
+      "args": ["mcp", "serve"]
+    }
+  }
+}
+```
+
+#### Available MCP Tools
+
+| Tool | Description |
+|------|-------------|
+| `gpeek_status` | Get repository status |
+| `gpeek_diff` | Get structured diffs (staged/unstaged/commit) |
+| `gpeek_log` | Get commit history with filters |
+| `gpeek_summary` | Complete repo snapshot in one call |
+| `gpeek_blame` | Line-by-line file attribution |
+| `gpeek_branches` | List local/remote branches |
+| `gpeek_stashes` | List stashed changes |
+| `gpeek_tags` | List repository tags |
+| `gpeek_changes_between` | Analyze changes between two refs |
+| `gpeek_conflict_check` | Dry-run merge conflict detection |
+
+#### MCP Tool Parameters
+
+**gpeek_summary** (recommended starting point):
+```json
+{
+  "path": ".",        // Repository path (optional)
+  "commits": 10       // Number of recent commits (optional)
+}
+```
+
+**gpeek_diff**:
+```json
+{
+  "path": ".",        // Repository path (optional)
+  "file": "",         // Specific file to diff (optional)
+  "staged": false,    // Show staged changes (optional)
+  "commit": ""        // Show diff for specific commit (optional)
+}
+```
+
+**gpeek_blame**:
+```json
+{
+  "path": ".",        // Repository path (optional)
+  "file": "src/app.ts", // File to blame (required)
+  "start_line": 1,    // Start line (optional)
+  "end_line": 50      // End line (optional)
+}
+```
+
+**gpeek_changes_between**:
+```json
+{
+  "path": ".",        // Repository path (optional)
+  "from": "v1.0.0",   // Starting ref (required)
+  "to": "HEAD"        // Ending ref (optional, default: HEAD)
+}
+```
+
+**gpeek_conflict_check**:
+```json
+{
+  "path": ".",            // Repository path (optional)
+  "branch": "feature/x",  // Branch to check (required)
+  "into": "main"          // Target branch (optional, default: current)
+}
+```
+
+### Smart Analysis Commands
+
+Advanced commands for intelligent code analysis:
+
+```bash
+# Check if merging a branch would cause conflicts
+gpeek check-conflicts --branch feature/ui -f json
+
+# Summarize changes between two refs
+gpeek summarize-changes --from v1.0.0 --to HEAD -f json
+
+# Analyze staged changes for risk assessment
+gpeek analyze-changes --staged -f json
+```
+
+### Semantic Search
+
+Index and search commits by intent:
+
+```bash
+# Index commit history (run once)
+gpeek index commits
+
+# Search commits semantically
+gpeek search commits "authentication fix" -f json
+
+# Find commits similar to staged changes
+gpeek similar --staged -f json
+```
+
+---
+
+## TUI Mode
+
+Launch the TUI by running `gpeek` without subcommands:
+
+```bash
+gpeek              # Current directory
+gpeek /path/to/repo  # Specific repository
+```
+
+## TUI Keybindings
 
 ### Navigation
 
@@ -168,6 +361,16 @@ syntax:
 ## Contributing
 
 See [CONTRIBUTING.md](CONTRIBUTING.md) for development setup and guidelines.
+
+## Why gpeek for Agents?
+
+| Raw Git Commands | gpeek Agent Mode |
+|------------------|------------------|
+| `git status` - requires text parsing | `gpeek status -f json` - structured data |
+| Multiple commands for full context | `gpeek summary -f json` - one call |
+| No semantic search | `gpeek search commits "fix login"` |
+| Manual conflict checking | `gpeek check-conflicts --branch X` |
+| No change analysis | `gpeek analyze-changes --staged` |
 
 ## License
 
