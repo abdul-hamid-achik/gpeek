@@ -154,9 +154,13 @@ func (r *Repository) untrackedFileDiff(path string) (string, error) {
 }
 
 func (r *Repository) CommitDiff(hash string) (string, error) {
-	h := plumbing.NewHash(hash)
+	// Resolve short hash, branch name, tag, HEAD, etc. to full hash
+	h, err := r.repo.ResolveRevision(plumbing.Revision(hash))
+	if err != nil {
+		return "", fmt.Errorf("cannot resolve revision %q: %w", hash, err)
+	}
 
-	commit, err := r.repo.CommitObject(h)
+	commit, err := r.repo.CommitObject(*h)
 	if err != nil {
 		return "", err
 	}
