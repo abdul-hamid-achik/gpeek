@@ -1,4 +1,4 @@
-package mcp
+package tools
 
 import (
 	"fmt"
@@ -7,8 +7,6 @@ import (
 	"github.com/abdul-hamid-achik/gpeek/internal/diff"
 	"github.com/abdul-hamid-achik/gpeek/internal/git"
 )
-
-// Response types for MCP tools
 
 // RepositoryInfo contains basic repository information
 type RepositoryInfo struct {
@@ -23,71 +21,7 @@ type FileInfo struct {
 	Status string `json:"status"`
 }
 
-// StatusResponse is the response for status queries
-type StatusResponse struct {
-	Repository RepositoryInfo `json:"repository"`
-	Staged     []FileInfo     `json:"staged"`
-	Unstaged   []FileInfo     `json:"unstaged"`
-	Untracked  []string       `json:"untracked"`
-	Summary    StatusSummary  `json:"summary"`
-}
-
-// StatusSummary provides summary counts
-type StatusSummary struct {
-	StagedCount    int  `json:"staged_count"`
-	UnstagedCount  int  `json:"unstaged_count"`
-	UntrackedCount int  `json:"untracked_count"`
-	IsClean        bool `json:"is_clean"`
-	HasConflicts   bool `json:"has_conflicts"`
-}
-
-type DiffResponse struct {
-	File   string         `json:"file,omitempty"`
-	Commit string         `json:"commit,omitempty"`
-	Staged bool           `json:"staged"`
-	Files  []FileDiffInfo `json:"files"`
-	Stats  DiffStats      `json:"stats"`
-}
-
-type FileDiffInfo struct {
-	OldName   string     `json:"old_name"`
-	NewName   string     `json:"new_name"`
-	IsBinary  bool       `json:"is_binary"`
-	IsNew     bool       `json:"is_new"`
-	IsDelete  bool       `json:"is_delete"`
-	IsRename  bool       `json:"is_rename"`
-	Hunks     []HunkInfo `json:"hunks"`
-	Additions int        `json:"additions"`
-	Deletions int        `json:"deletions"`
-}
-
-type HunkInfo struct {
-	OldStart int        `json:"old_start"`
-	OldCount int        `json:"old_count"`
-	NewStart int        `json:"new_start"`
-	NewCount int        `json:"new_count"`
-	Header   string     `json:"header"`
-	Lines    []LineInfo `json:"lines"`
-}
-
-type LineInfo struct {
-	Type      string `json:"type"`
-	Content   string `json:"content"`
-	OldNumber int    `json:"old_number,omitempty"`
-	NewNumber int    `json:"new_number,omitempty"`
-}
-
-type DiffStats struct {
-	FilesChanged int `json:"files_changed"`
-	Additions    int `json:"additions"`
-	Deletions    int `json:"deletions"`
-}
-
-type LogResponse struct {
-	Commits []CommitInfo `json:"commits"`
-	Total   int          `json:"total"`
-}
-
+// CommitInfo represents commit information
 type CommitInfo struct {
 	Hash      string    `json:"hash"`
 	ShortHash string    `json:"short_hash"`
@@ -100,15 +34,101 @@ type CommitInfo struct {
 	Parents   []string  `json:"parents,omitempty"`
 }
 
-type SummaryResponse struct {
-	Repository    RepositoryInfo  `json:"repository"`
-	Status        SummaryStatus   `json:"status"`
-	RecentCommits []CommitInfo    `json:"recent_commits"`
-	Branches      SummaryBranches `json:"branches"`
-	Stashes       SummaryStashes  `json:"stashes"`
-	Tags          SummaryTags     `json:"tags"`
+// DiffResponse is the response for diff queries
+type DiffResponse struct {
+	File   string         `json:"file,omitempty"`
+	Commit string         `json:"commit,omitempty"`
+	Staged bool           `json:"staged"`
+	Files  []FileDiffInfo `json:"files"`
+	Stats  DiffStats      `json:"stats"`
 }
 
+// FileDiffInfo represents a file diff
+type FileDiffInfo struct {
+	OldName   string     `json:"old_name"`
+	NewName   string     `json:"new_name"`
+	IsBinary  bool       `json:"is_binary"`
+	IsNew     bool       `json:"is_new"`
+	IsDelete  bool       `json:"is_delete"`
+	IsRename  bool       `json:"is_rename"`
+	Hunks     []HunkInfo `json:"hunks"`
+	Additions int        `json:"additions"`
+	Deletions int        `json:"deletions"`
+}
+
+// HunkInfo represents a diff hunk
+type HunkInfo struct {
+	OldStart int        `json:"old_start"`
+	OldCount int        `json:"old_count"`
+	NewStart int        `json:"new_start"`
+	NewCount int        `json:"new_count"`
+	Header   string     `json:"header"`
+	Lines    []LineInfo `json:"lines"`
+}
+
+// LineInfo represents a line in a diff
+type LineInfo struct {
+	Type      string     `json:"type"`
+	Content   string     `json:"content"`
+	OldNumber int        `json:"old_number,omitempty"`
+	NewNumber int        `json:"new_number,omitempty"`
+	Blame     *BlameInfo `json:"blame,omitempty"` // Optional blame info
+}
+
+// BlameInfo contains blame info for a line
+type BlameInfo struct {
+	Author  string `json:"author"`
+	Hash    string `json:"hash"`
+	TimeAgo string `json:"time_ago"`
+}
+
+// DiffStats contains diff statistics
+type DiffStats struct {
+	FilesChanged int `json:"files_changed"`
+	Additions    int `json:"additions"`
+	Deletions    int `json:"deletions"`
+}
+
+// LogResponse is the response for log queries
+type LogResponse struct {
+	Commits []CommitInfo `json:"commits"`
+	Total   int          `json:"total"`
+}
+
+// SummaryResponse is the complete repository summary
+type SummaryResponse struct {
+	Repository    RepositoryInfo   `json:"repository"`
+	Status        SummaryStatus    `json:"status"`
+	RecentCommits []CommitInfo     `json:"recent_commits"`
+	Branches      SummaryBranches  `json:"branches"`
+	Stashes       SummaryStashes   `json:"stashes"`
+	Tags          SummaryTags      `json:"tags"`
+	Enhanced      *EnhancedSummary `json:"enhanced,omitempty"`
+}
+
+// EnhancedSummary contains additional analysis data
+type EnhancedSummary struct {
+	HotFiles    []HotFile       `json:"hot_files"`
+	Languages   []LanguageInfo  `json:"languages"`
+	ProjectType string          `json:"project_type"`
+	Suggestions []string        `json:"suggestions,omitempty"`
+}
+
+// HotFile represents a frequently changed file
+type HotFile struct {
+	Path        string   `json:"path"`
+	ChangeCount int      `json:"change_count"`
+	Authors     []string `json:"authors"`
+}
+
+// LanguageInfo represents detected language statistics
+type LanguageInfo struct {
+	Name       string `json:"name"`
+	FileCount  int    `json:"file_count"`
+	Percentage float64 `json:"percentage"`
+}
+
+// SummaryStatus is the status section of summary
 type SummaryStatus struct {
 	Staged         []FileInfo `json:"staged"`
 	Unstaged       []FileInfo `json:"unstaged"`
@@ -120,12 +140,14 @@ type SummaryStatus struct {
 	HasConflicts   bool       `json:"has_conflicts"`
 }
 
+// SummaryBranches is the branches section of summary
 type SummaryBranches struct {
 	Current string       `json:"current"`
 	Local   []BranchInfo `json:"local"`
 	Count   int          `json:"count"`
 }
 
+// BranchInfo represents branch information
 type BranchInfo struct {
 	Name      string `json:"name"`
 	Hash      string `json:"hash"`
@@ -133,34 +155,40 @@ type BranchInfo struct {
 	Upstream  string `json:"upstream,omitempty"`
 }
 
+// SummaryStashes is the stashes section of summary
 type SummaryStashes struct {
 	Count   int         `json:"count"`
 	Entries []StashInfo `json:"entries"`
 }
 
+// StashInfo represents stash information
 type StashInfo struct {
 	Index   int    `json:"index"`
 	Message string `json:"message"`
 	Branch  string `json:"branch,omitempty"`
 }
 
+// SummaryTags is the tags section of summary
 type SummaryTags struct {
 	Count int       `json:"count"`
 	Tags  []TagInfo `json:"tags"`
 }
 
+// TagInfo represents tag information
 type TagInfo struct {
 	Name        string `json:"name"`
 	Hash        string `json:"hash"`
 	IsAnnotated bool   `json:"is_annotated"`
 }
 
+// BlameResponse is the response for blame queries
 type BlameResponse struct {
 	File  string          `json:"file"`
 	Lines []BlameLineInfo `json:"lines"`
 	Total int             `json:"total"`
 }
 
+// BlameLineInfo represents a blame line
 type BlameLineInfo struct {
 	LineNum int       `json:"line_num"`
 	Hash    string    `json:"hash,omitempty"`
@@ -170,12 +198,14 @@ type BlameLineInfo struct {
 	Content string    `json:"content"`
 }
 
+// BranchesResponse is the response for branches queries
 type BranchesResponse struct {
 	Current  string             `json:"current"`
 	Branches []BranchDetailInfo `json:"branches"`
 	Total    int                `json:"total"`
 }
 
+// BranchDetailInfo represents detailed branch information
 type BranchDetailInfo struct {
 	Name      string `json:"name"`
 	Hash      string `json:"hash"`
@@ -185,11 +215,13 @@ type BranchDetailInfo struct {
 	Upstream  string `json:"upstream,omitempty"`
 }
 
+// StashesResponse is the response for stashes queries
 type StashesResponse struct {
 	Stashes []StashDetailInfo `json:"stashes"`
 	Total   int               `json:"total"`
 }
 
+// StashDetailInfo represents detailed stash information
 type StashDetailInfo struct {
 	Index   int    `json:"index"`
 	Message string `json:"message"`
@@ -198,11 +230,13 @@ type StashDetailInfo struct {
 	TimeAgo string `json:"time_ago"`
 }
 
+// TagsResponse is the response for tags queries
 type TagsResponse struct {
 	Tags  []TagDetailInfo `json:"tags"`
 	Total int             `json:"total"`
 }
 
+// TagDetailInfo represents detailed tag information
 type TagDetailInfo struct {
 	Name        string `json:"name"`
 	Hash        string `json:"hash"`
@@ -215,7 +249,8 @@ type TagDetailInfo struct {
 
 // Builder functions
 
-func buildDiffResponse(parsed *diff.Diff, file, commit string, staged bool) DiffResponse {
+// BuildDiffResponse builds a DiffResponse from parsed diff
+func BuildDiffResponse(parsed *diff.Diff, file, commit string, staged bool) DiffResponse {
 	files := make([]FileDiffInfo, len(parsed.Files))
 	totalAdded, totalRemoved := 0, 0
 
@@ -277,7 +312,8 @@ func buildDiffResponse(parsed *diff.Diff, file, commit string, staged bool) Diff
 	}
 }
 
-func buildLogResponse(commits []git.Commit) LogResponse {
+// BuildLogResponse builds a LogResponse from commits
+func BuildLogResponse(commits []git.Commit) LogResponse {
 	infos := make([]CommitInfo, len(commits))
 	for i, c := range commits {
 		shortHash := c.Hash
@@ -291,7 +327,7 @@ func buildLogResponse(commits []git.Commit) LogResponse {
 			Author:    c.Author,
 			Email:     c.Email,
 			Time:      c.Time,
-			TimeAgo:   timeAgo(c.Time),
+			TimeAgo:   TimeAgo(c.Time),
 			IsMerge:   c.IsMerge,
 			Parents:   c.Parents,
 		}
@@ -302,7 +338,8 @@ func buildLogResponse(commits []git.Commit) LogResponse {
 	}
 }
 
-func buildSummaryResponse(repo *git.Repository, commitLimit int) SummaryResponse {
+// BuildSummaryResponse builds a complete SummaryResponse
+func BuildSummaryResponse(repo *git.Repository, commitLimit int) SummaryResponse {
 	response := SummaryResponse{
 		Repository: RepositoryInfo{
 			Name:   repo.Name(),
@@ -359,7 +396,7 @@ func buildSummaryResponse(repo *git.Repository, commitLimit int) SummaryResponse
 				Author:    c.Author,
 				Email:     c.Email,
 				Time:      c.Time,
-				TimeAgo:   timeAgo(c.Time),
+				TimeAgo:   TimeAgo(c.Time),
 				IsMerge:   c.IsMerge,
 			}
 		}
@@ -422,7 +459,8 @@ func buildSummaryResponse(repo *git.Repository, commitLimit int) SummaryResponse
 	return response
 }
 
-func buildBlameResponse(file string, lines []git.BlameLine) BlameResponse {
+// BuildBlameResponse builds a BlameResponse
+func BuildBlameResponse(file string, lines []git.BlameLine) BlameResponse {
 	infos := make([]BlameLineInfo, len(lines))
 	for i, l := range lines {
 		info := BlameLineInfo{
@@ -433,9 +471,8 @@ func buildBlameResponse(file string, lines []git.BlameLine) BlameResponse {
 			Content: l.Content,
 		}
 		if !l.Time.IsZero() {
-			info.TimeAgo = timeAgo(l.Time)
+			info.TimeAgo = TimeAgo(l.Time)
 		}
-		// Shorten hash for display
 		if len(info.Hash) > 8 {
 			info.Hash = info.Hash[:8]
 		}
@@ -448,7 +485,8 @@ func buildBlameResponse(file string, lines []git.BlameLine) BlameResponse {
 	}
 }
 
-func buildBranchesResponse(current string, branches []git.Branch) BranchesResponse {
+// BuildBranchesResponse builds a BranchesResponse
+func BuildBranchesResponse(current string, branches []git.Branch) BranchesResponse {
 	infos := make([]BranchDetailInfo, len(branches))
 	for i, b := range branches {
 		shortHash := b.Hash
@@ -471,7 +509,8 @@ func buildBranchesResponse(current string, branches []git.Branch) BranchesRespon
 	}
 }
 
-func buildStashesResponse(stashes []git.Stash) StashesResponse {
+// BuildStashesResponse builds a StashesResponse
+func BuildStashesResponse(stashes []git.Stash) StashesResponse {
 	infos := make([]StashDetailInfo, len(stashes))
 	for i, s := range stashes {
 		infos[i] = StashDetailInfo{
@@ -479,7 +518,7 @@ func buildStashesResponse(stashes []git.Stash) StashesResponse {
 			Message: s.Message,
 			Branch:  s.Branch,
 			Hash:    s.Hash,
-			TimeAgo: timeAgo(s.Time),
+			TimeAgo: TimeAgo(s.Time),
 		}
 	}
 	return StashesResponse{
@@ -488,7 +527,8 @@ func buildStashesResponse(stashes []git.Stash) StashesResponse {
 	}
 }
 
-func buildTagsResponse(tags []git.Tag) TagsResponse {
+// BuildTagsResponse builds a TagsResponse
+func BuildTagsResponse(tags []git.Tag) TagsResponse {
 	infos := make([]TagDetailInfo, len(tags))
 	for i, t := range tags {
 		shortHash := t.Hash
@@ -504,7 +544,7 @@ func buildTagsResponse(tags []git.Tag) TagsResponse {
 			IsAnnotated: t.IsAnnotated,
 		}
 		if !t.TaggerTime.IsZero() {
-			info.TimeAgo = timeAgo(t.TaggerTime)
+			info.TimeAgo = TimeAgo(t.TaggerTime)
 		}
 		infos[i] = info
 	}
@@ -514,7 +554,8 @@ func buildTagsResponse(tags []git.Tag) TagsResponse {
 	}
 }
 
-func timeAgo(t time.Time) string {
+// TimeAgo returns a human-readable time difference
+func TimeAgo(t time.Time) string {
 	duration := time.Since(t)
 	switch {
 	case duration < time.Minute:

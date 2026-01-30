@@ -14,6 +14,7 @@ type Config struct {
 	Git    GitConfig    `yaml:"git"`
 	GitHub GitHubConfig `yaml:"github"`
 	Search SearchConfig `yaml:"search"`
+	MCP    MCPConfig    `yaml:"mcp"`
 }
 
 type UIConfig struct {
@@ -77,6 +78,13 @@ type SearchConfig struct {
 	HighlightMatches bool   `yaml:"highlight_matches"`
 }
 
+type MCPConfig struct {
+	CacheEnabled  bool `yaml:"cache_enabled"`   // Enable repository caching
+	CacheMaxRepos int  `yaml:"cache_max_repos"` // Max cached repositories
+	CacheTTLSecs  int  `yaml:"cache_ttl_secs"`  // Cache TTL in seconds
+	VecgrepEnabled bool `yaml:"vecgrep_enabled"` // Enable vecgrep integration
+}
+
 func Default() *Config {
 	return &Config{
 		Theme: "nord",
@@ -134,6 +142,12 @@ func Default() *Config {
 			MaxResults:       100,
 			DebounceMs:       150,
 			HighlightMatches: true,
+		},
+		MCP: MCPConfig{
+			CacheEnabled:   true,
+			CacheMaxRepos:  10,
+			CacheTTLSecs:   300,
+			VecgrepEnabled: true,
 		},
 	}
 }

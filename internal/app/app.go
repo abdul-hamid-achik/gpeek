@@ -32,8 +32,9 @@ type Model struct {
 	commitsPanel  *panels.CommitsPanel
 	previewPanel  *panels.PreviewPanel
 
-	activeModal modals.Modal
-	searchModal *uisearch.SearchModal
+	activeModal     modals.Modal
+	searchModal     *uisearch.SearchModal
+	paletteModal    *modals.PaletteModal
 
 	statusMessage   string
 	statusError     bool
@@ -138,6 +139,18 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 	case tea.KeyMsg:
 		// Handle search modal first (it's separate from activeModal)
+		// Handle command palette first
+		if m.paletteModal != nil {
+			result, cmd := m.paletteModal.Update(msg)
+			if result == nil {
+				m.paletteModal = nil
+			}
+			if cmd != nil {
+				cmds = append(cmds, cmd)
+			}
+			return m, tea.Batch(cmds...)
+		}
+
 		if m.searchModal != nil {
 			result, cmd := m.searchModal.Update(msg)
 			if result == nil {
@@ -463,6 +476,16 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			m.activeModal = modals.NewGitConfigModal(m.styles, m.repo, m.width-8, m.height-8)
 			return m, nil
 
+		case key.Matches(msg, m.keys.CommandPalette):
+			// Open command palette
+			m.paletteModal = modals.NewPaletteModal(
+				modals.DefaultCommands(),
+				m.executeCommand,
+				m.width-20,
+				m.height-10,
+			)
+			return m, nil
+
 		default:
 			cmd := m.updateFocusedPanel(msg)
 			if cmd != nil {
@@ -606,6 +629,11 @@ func (m *Model) View() string {
 		view = m.overlayModal(view, modalView)
 	}
 
+	if m.paletteModal != nil {
+		modalView := m.paletteModal.View()
+		view = m.overlayModal(view, modalView)
+	}
+
 	return view
 }
 
@@ -670,7 +698,7 @@ func (m *Model) getPanelHints() string {
 	}
 }
 
-func (m *Model) overlayModal(base, modal string) string {
+func (m *Model) overlayModal(_, modal string) string {
 	return lipgloss.Place(
 		m.width,
 		m.height,
@@ -679,6 +707,34 @@ func (m *Model) overlayModal(base, modal string) string {
 		modal,
 		lipgloss.WithWhitespaceBackground(lipgloss.Color(m.styles.Theme.Background)),
 	)
+}
+
+// executeCommand handles command palette selections
+func (m *Model) executeCommand(cmd modals.Command) tea.Cmd {
+	switch cmd.ID {
+	case "focus_files":
+		m.setFocus(ui.PanelFiles)
+	case "focus_branches":
+		m.setFocus(ui.PanelBranches)
+	case "focus_commits":
+		m.setFocus(ui.PanelCommits)
+	case "focus_preview":
+		m.setFocus(ui.PanelPreview)
+	case "refresh":
+		return tea.Batch(m.refreshStatus(), m.refreshBranches(), m.refreshCommits(), m.refreshTags())
+	case "help":
+		m.activeModal = modals.NewHelpModal(m.styles, m.keys.FullHelp())
+	case "quit":
+		return tea.Quit
+	case "git_config":
+		m.activeModal = modals.NewGitConfigModal(m.styles, m.repo, m.width-8, m.height-8)
+	// Commands that need more context - just show status for now
+	case "commit", "stash", "worktree", "stage", "unstage", "discard", "push", "pull", "fetch":
+		m.setStatus(fmt.Sprintf("Use keyboard shortcut for '%s'", cmd.Title), false)
+	default:
+		m.setStatus(fmt.Sprintf("Command '%s' executed", cmd.Title), false)
+	}
+	return nil
 }
 
 func (m *Model) cycleFocus(forward bool) {
