@@ -32,9 +32,9 @@ type Model struct {
 	commitsPanel  *panels.CommitsPanel
 	previewPanel  *panels.PreviewPanel
 
-	activeModal     modals.Modal
-	searchModal     *uisearch.SearchModal
-	paletteModal    *modals.PaletteModal
+	activeModal  modals.Modal
+	searchModal  *uisearch.SearchModal
+	paletteModal *modals.PaletteModal
 
 	statusMessage   string
 	statusError     bool
@@ -524,6 +524,12 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			m.previewPanel.SetDiff(msg.diff)
 		}
 
+	case panels.FileSelectedMsg:
+		// Sync preview panel with selected file in files panel
+		if m.focused == ui.PanelFiles {
+			m.previewPanel.ScrollToFileByName(msg.Path)
+		}
+
 	case gitTagsMsg:
 		if msg.err == nil {
 			m.branchesPanel.SetTags(msg.tags)
@@ -847,4 +853,3 @@ func (m *Model) setStatus(msg string, isError bool) {
 	m.statusError = isError
 	m.statusTime = time.Now()
 }
-

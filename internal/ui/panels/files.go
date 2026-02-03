@@ -12,6 +12,11 @@ import (
 	tea "github.com/charmbracelet/bubbletea"
 )
 
+// FileSelectedMsg is sent when the selected file changes in the Files panel
+type FileSelectedMsg struct {
+	Path string
+}
+
 type FileEntry struct {
 	Path    string
 	Status  git.FileStatus
@@ -32,6 +37,9 @@ type FilesPanel struct {
 	cursor   int
 	section  int
 	selected map[string]bool
+
+	// Track previous selection for change detection
+	prevSelectedPath string
 
 	// Filter support
 	filterBar *uisearch.FilterBar
@@ -143,23 +151,73 @@ func (p *FilesPanel) Update(msg tea.Msg) tea.Cmd {
 			}
 		case "j", "down":
 			p.moveDown()
+			// Check if selection changed and emit message
+			if file := p.SelectedFile(); file != nil && file.Path != p.prevSelectedPath {
+				p.prevSelectedPath = file.Path
+				return func() tea.Msg {
+					return FileSelectedMsg{Path: file.Path}
+				}
+			}
 		case "k", "up":
 			p.moveUp()
+			// Check if selection changed and emit message
+			if file := p.SelectedFile(); file != nil && file.Path != p.prevSelectedPath {
+				p.prevSelectedPath = file.Path
+				return func() tea.Msg {
+					return FileSelectedMsg{Path: file.Path}
+				}
+			}
 		case "g":
 			p.cursor = 0
 			p.section = 0
+			// Check if selection changed and emit message
+			if file := p.SelectedFile(); file != nil && file.Path != p.prevSelectedPath {
+				p.prevSelectedPath = file.Path
+				return func() tea.Msg {
+					return FileSelectedMsg{Path: file.Path}
+				}
+			}
 		case "G":
 			if p.totalItems() > 0 {
 				p.cursor = p.totalItems() - 1
 				p.updateSection()
+				// Check if selection changed and emit message
+				if file := p.SelectedFile(); file != nil && file.Path != p.prevSelectedPath {
+					p.prevSelectedPath = file.Path
+					return func() tea.Msg {
+						return FileSelectedMsg{Path: file.Path}
+					}
+				}
 			}
 		case "ctrl+d":
+			oldPath := ""
+			if file := p.SelectedFile(); file != nil {
+				oldPath = file.Path
+			}
 			for i := 0; i < p.height/2; i++ {
 				p.moveDown()
 			}
+			// Check if selection changed and emit message
+			if file := p.SelectedFile(); file != nil && file.Path != oldPath {
+				p.prevSelectedPath = file.Path
+				return func() tea.Msg {
+					return FileSelectedMsg{Path: file.Path}
+				}
+			}
 		case "ctrl+u":
+			oldPath := ""
+			if file := p.SelectedFile(); file != nil {
+				oldPath = file.Path
+			}
 			for i := 0; i < p.height/2; i++ {
 				p.moveUp()
+			}
+			// Check if selection changed and emit message
+			if file := p.SelectedFile(); file != nil && file.Path != oldPath {
+				p.prevSelectedPath = file.Path
+				return func() tea.Msg {
+					return FileSelectedMsg{Path: file.Path}
+				}
 			}
 		case " ":
 			if file := p.SelectedFile(); file != nil {
