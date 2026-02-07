@@ -67,18 +67,26 @@ func TestPaletteModalCaseInsensitiveFilter(t *testing.T) {
 	commands := DefaultCommands()
 	modal := NewPaletteModal(commands, nil, 80, 24)
 
-	// Filter with uppercase
-	modal.input.SetValue("PUSH")
-	modal.filterCommands()
-	upperCount := len(modal.filtered)
-
-	// Filter with lowercase
+	// Filter with lowercase - fuzzy matching uses smart case
+	// so lowercase queries match case-insensitively
 	modal.input.SetValue("push")
 	modal.filterCommands()
 	lowerCount := len(modal.filtered)
 
-	if upperCount != lowerCount {
-		t.Errorf("case sensitivity: upper=%d, lower=%d, should be equal", upperCount, lowerCount)
+	if lowerCount == 0 {
+		t.Error("filtering by 'push' should find at least one command")
+	}
+
+	// Verify the Push command is in the results
+	found := false
+	for _, cmd := range modal.filtered {
+		if cmd.ID == "push" {
+			found = true
+			break
+		}
+	}
+	if !found {
+		t.Error("expected Push command in filtered results for 'push'")
 	}
 }
 
@@ -232,7 +240,7 @@ func TestDefaultCommands(t *testing.T) {
 }
 
 func TestPaletteStyles(t *testing.T) {
-	styles := DefaultPaletteStyles()
+	styles := defaultFallbackPaletteStyles()
 
 	// Verify styles are initialized (basic smoke test)
 	// Just check that the function returns without panic
@@ -247,20 +255,18 @@ func TestPaletteModalCategoryFiltering(t *testing.T) {
 	commands := DefaultCommands()
 	modal := NewPaletteModal(commands, nil, 80, 24)
 
-	// Filter by category name
-	modal.input.SetValue("git")
+	// Filter by category name using exact match syntax (quoted)
+	modal.input.SetValue("\"git\"")
 	modal.filterCommands()
 
-	// Should find Git category commands
+	// Should find commands containing "git" in title, description, or category
 	if len(modal.filtered) == 0 {
-		t.Error("filtering by 'git' should find commands")
+		t.Error("filtering by exact 'git' should find commands")
 	}
 
 	for _, cmd := range modal.filtered {
-		matchesTitle := strings.Contains(strings.ToLower(cmd.Title), "git")
-		matchesDesc := strings.Contains(strings.ToLower(cmd.Description), "git")
-		matchesCat := strings.Contains(strings.ToLower(cmd.Category), "git")
-		if !matchesTitle && !matchesDesc && !matchesCat {
+		combined := strings.ToLower(cmd.Title + " " + cmd.Description + " " + cmd.Category)
+		if !strings.Contains(combined, "git") {
 			t.Errorf("command %q doesn't match 'git' filter", cmd.ID)
 		}
 	}

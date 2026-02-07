@@ -3,6 +3,7 @@ package modals
 import (
 	"testing"
 
+	"github.com/abdul-hamid-achik/gpeek/internal/diff"
 	"github.com/abdul-hamid-achik/gpeek/internal/ui"
 	"github.com/charmbracelet/lipgloss"
 )
@@ -62,18 +63,18 @@ diff --git a/file3.go b/file3.go
 
 	// Test 3: Verify file start positions
 	// File 0 should start at line 0
-	if modal.filePositions[0].startLine != 0 {
-		t.Errorf("File 0 should start at line 0, got %d", modal.filePositions[0].startLine)
+	if modal.filePositions[0].StartLine != 0 {
+		t.Errorf("File 0 should start at line 0, got %d", modal.filePositions[0].StartLine)
 	}
 
 	// File 1 should start at line 1 (after file 0 header)
-	if modal.filePositions[1].startLine != 1 {
-		t.Errorf("File 1 should start at line 1, got %d", modal.filePositions[1].startLine)
+	if modal.filePositions[1].StartLine != 1 {
+		t.Errorf("File 1 should start at line 1, got %d", modal.filePositions[1].StartLine)
 	}
 
 	// File 2 should start at line 2 (after file 0 and 1 headers)
-	if modal.filePositions[2].startLine != 2 {
-		t.Errorf("File 2 should start at line 2, got %d", modal.filePositions[2].startLine)
+	if modal.filePositions[2].StartLine != 2 {
+		t.Errorf("File 2 should start at line 2, got %d", modal.filePositions[2].StartLine)
 	}
 }
 
@@ -107,12 +108,12 @@ func TestDiffModalFileExpansion(t *testing.T) {
 	modal.renderContent()
 
 	// Verify file position is updated after expansion
-	if !modal.filePositions[0].expanded {
+	if !modal.filePositions[0].Expanded {
 		t.Error("File position should track expanded state")
 	}
 
 	// Test that endLine is greater than startLine after expansion
-	if modal.filePositions[0].endLine <= modal.filePositions[0].startLine {
+	if modal.filePositions[0].EndLine <= modal.filePositions[0].StartLine {
 		t.Error("Expanded file should have endLine > startLine")
 	}
 }
@@ -170,7 +171,7 @@ diff --git a/file3.go b/file3.go
 	modal.renderContent()
 
 	// Now file 1 should have more lines
-	if modal.filePositions[1].endLine <= modal.filePositions[1].startLine {
+	if modal.filePositions[1].EndLine <= modal.filePositions[1].StartLine {
 		t.Error("Expanded file should have endLine > startLine")
 	}
 }
@@ -251,27 +252,27 @@ diff --git a/file2.go b/file2.go
 	// After expansion, files should have substantial content
 	// File 0: start=0, end should be > start
 	// File 1: start should be >= file 0's end
-	if modal.filePositions[0].endLine <= modal.filePositions[0].startLine {
+	if modal.filePositions[0].EndLine <= modal.filePositions[0].StartLine {
 		t.Fatal("File 0 should have content after expansion")
 	}
-	if modal.filePositions[1].startLine < modal.filePositions[0].endLine {
+	if modal.filePositions[1].StartLine < modal.filePositions[0].EndLine {
 		t.Fatalf("File 1 should start at or after file 0 ends. File 0 ends at %d, File 1 starts at %d",
-			modal.filePositions[0].endLine, modal.filePositions[1].startLine)
+			modal.filePositions[0].EndLine, modal.filePositions[1].StartLine)
 	}
 
 	// Test scrolling to file 1
 	modal.scrollToFile(1)
 	// After scroll, YOffset should be at file 1's start line
-	if modal.viewport.YOffset != modal.filePositions[1].startLine {
+	if modal.viewport.YOffset != modal.filePositions[1].StartLine {
 		t.Errorf("After scrollToFile(1), YOffset should be %d (file 1 start), got %d",
-			modal.filePositions[1].startLine, modal.viewport.YOffset)
+			modal.filePositions[1].StartLine, modal.viewport.YOffset)
 	}
 
 	// Test scrolling to file 0
 	modal.scrollToFile(0)
-	if modal.viewport.YOffset != modal.filePositions[0].startLine {
+	if modal.viewport.YOffset != modal.filePositions[0].StartLine {
 		t.Errorf("After scrollToFile(0), YOffset should be %d (file 0 start), got %d",
-			modal.filePositions[0].startLine, modal.viewport.YOffset)
+			modal.filePositions[0].StartLine, modal.viewport.YOffset)
 	}
 
 	// Test invalid index (should not panic)
@@ -303,13 +304,13 @@ func TestDiffModalIsAllCollapsed(t *testing.T) {
 	modal := NewDiffModal(styles, "Test", diffContent, 80, 24)
 
 	// Initially all collapsed
-	if !modal.isAllCollapsed() {
+	if !diff.IsAllCollapsed(modal.expanded) {
 		t.Error("Initially all files should be collapsed")
 	}
 
 	// Expand file
 	modal.expanded[0] = true
-	if modal.isAllCollapsed() {
+	if diff.IsAllCollapsed(modal.expanded) {
 		t.Error("After expanding a file, isAllCollapsed should return false")
 	}
 }
@@ -347,7 +348,7 @@ func TestDiffModalCountFileChanges(t *testing.T) {
 	}
 
 	file := modal.parsedDiff.Files[0]
-	adds, dels := modal.countFileChanges(file)
+	adds, dels := diff.CountFileChanges(file)
 
 	// The diff has:
 	// +import "fmt" (addition)

@@ -115,10 +115,17 @@ func (p *BranchesPanel) Update(msg tea.Msg) tea.Cmd {
 			p.cursor = 0
 			p.inWorktreeSection = false
 		case "G":
-			if p.showWorktrees && len(p.worktrees) > 0 {
+			if p.showTags && len(p.tags) > 0 {
+				p.inWorktreeSection = false
+				p.inTagSection = true
+				p.tagCursor = len(p.tags) - 1
+			} else if p.showWorktrees && len(p.worktrees) > 0 {
+				p.inTagSection = false
 				p.inWorktreeSection = true
 				p.worktreeCursor = len(p.worktrees) - 1
 			} else if len(p.filteredBranches) > 0 {
+				p.inTagSection = false
+				p.inWorktreeSection = false
 				p.cursor = len(p.filteredBranches) - 1
 			}
 		case "W":
@@ -281,7 +288,11 @@ func (p *BranchesPanel) renderTag(t git.Tag, selected bool) string {
 
 	line := fmt.Sprintf("%s %s %s", prefix, icon, t.Name)
 	if t.Hash != "" {
-		line += fmt.Sprintf(" (%s)", t.Hash[:7])
+		hash := t.Hash
+		if len(hash) > 7 {
+			hash = hash[:7]
+		}
+		line += fmt.Sprintf(" (%s)", hash)
 	}
 
 	if selected && p.focused {

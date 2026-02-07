@@ -22,18 +22,22 @@ func DefaultPath(path string) string {
 func ValidatePath(path string) error {
 	cleaned := filepath.Clean(path)
 
-	if strings.Contains(cleaned, "..") {
-		abs, err := filepath.Abs(cleaned)
-		if err != nil {
-			return fmt.Errorf("invalid path: %v", err)
-		}
-		cwd, err := filepath.Abs(".")
-		if err != nil {
-			return fmt.Errorf("cannot determine current directory: %v", err)
-		}
-		if !strings.HasPrefix(abs, cwd) && cleaned != "." && !filepath.IsAbs(cleaned) {
-			return fmt.Errorf("path traversal not allowed: %s", path)
-		}
+	// Reject absolute paths - all paths must be relative to the working directory
+	if filepath.IsAbs(cleaned) {
+		return fmt.Errorf("absolute paths not allowed: %s", path)
+	}
+
+	// Resolve to absolute and verify it's within the working directory
+	abs, err := filepath.Abs(cleaned)
+	if err != nil {
+		return fmt.Errorf("invalid path: %v", err)
+	}
+	cwd, err := filepath.Abs(".")
+	if err != nil {
+		return fmt.Errorf("cannot determine current directory: %v", err)
+	}
+	if !strings.HasPrefix(abs, cwd) {
+		return fmt.Errorf("path traversal not allowed: %s", path)
 	}
 
 	return nil

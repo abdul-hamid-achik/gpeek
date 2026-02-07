@@ -18,7 +18,7 @@ type HelpModal struct {
 }
 
 func NewHelpModal(styles *ui.Styles, bindings [][]key.Binding) *HelpModal {
-	vp := viewport.New(60, 20)
+	vp := viewport.New(60, 20) // Default size, will be overridden by SetSize
 
 	m := &HelpModal{
 		styles:   styles,
@@ -30,8 +30,31 @@ func NewHelpModal(styles *ui.Styles, bindings [][]key.Binding) *HelpModal {
 	return m
 }
 
+// SetSize updates the help modal dimensions based on terminal size
+func (m *HelpModal) SetSize(width, height int) {
+	// Use up to 70% of terminal, capped at 70x30
+	w := width * 7 / 10
+	if w > 70 {
+		w = 70
+	}
+	if w < 40 {
+		w = 40
+	}
+	h := height * 7 / 10
+	if h > 30 {
+		h = 30
+	}
+	if h < 10 {
+		h = 10
+	}
+	m.viewport.Width = w
+	m.viewport.Height = h - 5 // Account for title, footer, spacing
+}
+
 func (m *HelpModal) Update(msg tea.Msg) (Modal, tea.Cmd) {
 	switch msg := msg.(type) {
+	case tea.WindowSizeMsg:
+		m.SetSize(msg.Width, msg.Height)
 	case tea.KeyMsg:
 		switch msg.String() {
 		case "q", "esc", "?":

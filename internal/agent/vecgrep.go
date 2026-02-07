@@ -58,8 +58,8 @@ func (v *VecgrepIntegration) EnsureIndexDir() error {
 		if !strings.Contains(string(content), ".gpeek") {
 			f, err := os.OpenFile(gitignorePath, os.O_APPEND|os.O_WRONLY, 0644)
 			if err == nil {
+				defer func() { _ = f.Close() }()
 				_, _ = f.WriteString("\n.gpeek/\n")
-				_ = f.Close()
 			}
 		}
 	}
@@ -90,14 +90,18 @@ func (v *VecgrepIntegration) IndexCommits(repo *git.Repository, limit int) error
 		files := extractFilesFromDiff(diff)
 
 		// Create document text that includes commit message and files
+		hash := c.Hash
+		if len(hash) > 7 {
+			hash = hash[:7]
+		}
 		docText := fmt.Sprintf("Commit: %s\nAuthor: %s\nMessage: %s\nFiles: %s",
-			c.Hash[:7],
+			hash,
 			c.Author,
 			c.Message,
 			strings.Join(files, ", "))
 
 		// Write to file
-		docPath := filepath.Join(commitsDir, c.Hash[:7]+".txt")
+		docPath := filepath.Join(commitsDir, hash+".txt")
 		if err := os.WriteFile(docPath, []byte(docText), 0644); err != nil {
 			return fmt.Errorf("failed to write commit document: %w", err)
 		}

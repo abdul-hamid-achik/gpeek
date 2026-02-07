@@ -37,6 +37,9 @@ type StashModal struct {
 	previewContent string
 	previewScroll  int
 
+	// Confirmation state for destructive operations
+	confirmingDrop bool
+
 	err     string
 	success string
 }
@@ -74,9 +77,17 @@ func (m *StashModal) Update(msg tea.Msg) (Modal, tea.Cmd) {
 func (m *StashModal) updateListMode(msg tea.KeyMsg) (Modal, tea.Cmd) {
 	switch msg.String() {
 	case "esc", "q":
+		if m.confirmingDrop {
+			m.confirmingDrop = false
+			return m, nil
+		}
 		return nil, nil
 
-	case "n":
+	case "n", "N":
+		if m.confirmingDrop {
+			m.confirmingDrop = false
+			return m, nil
+		}
 		m.mode = StashModeCreate
 		m.messageInput.Focus()
 		m.err = ""
@@ -111,9 +122,16 @@ func (m *StashModal) updateListMode(msg tea.KeyMsg) (Modal, tea.Cmd) {
 
 	case "d":
 		if len(m.stashes) > 0 {
-			stash := m.stashes[m.cursor]
+			m.confirmingDrop = true
 			m.err = ""
 			m.success = ""
+		}
+		return m, nil
+
+	case "y", "Y":
+		if m.confirmingDrop && len(m.stashes) > 0 {
+			stash := m.stashes[m.cursor]
+			m.confirmingDrop = false
 			if err := m.repo.StashDrop(stash.Index); err != nil {
 				m.err = err.Error()
 			} else {
@@ -210,7 +228,9 @@ func (m *StashModal) updatePreviewMode(msg tea.KeyMsg) (Modal, tea.Cmd) {
 func (m *StashModal) refreshStashes() {
 	stashes, _ := m.repo.StashList()
 	m.stashes = stashes
-	if m.cursor >= len(m.stashes) && m.cursor > 0 {
+	if len(m.stashes) == 0 {
+		m.cursor = 0
+	} else if m.cursor >= len(m.stashes) {
 		m.cursor = len(m.stashes) - 1
 	}
 }
@@ -276,7 +296,13 @@ func (m *StashModal) renderListView() string {
 		statusLine = "\n" + m.styles.Success.Render(m.success)
 	}
 
-	footer := m.styles.Dim.Render("n new • p pop • a apply • d drop • enter preview • q close")
+	var footer string
+	if m.confirmingDrop && len(m.stashes) > 0 {
+		stash := m.stashes[m.cursor]
+		footer = m.styles.Error.Render(fmt.Sprintf("Drop stash@{%d}? This cannot be undone. (y/n)", stash.Index))
+	} else {
+		footer = m.styles.Dim.Render("n new • p pop • a apply • d drop • enter preview • q close")
+	}
 
 	return lipgloss.JoinVertical(lipgloss.Left,
 		strings.Join(lines, "\n"),

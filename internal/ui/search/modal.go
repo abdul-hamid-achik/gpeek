@@ -13,6 +13,13 @@ import (
 	"github.com/charmbracelet/lipgloss"
 )
 
+func truncHash(h string) string {
+	if len(h) > 7 {
+		return h[:7]
+	}
+	return h
+}
+
 // SearchResultType identifies the type of search result
 type SearchResultType int
 
@@ -159,7 +166,7 @@ func (m *SearchModal) search(pattern string) {
 
 			m.results = append(m.results, SearchResult{
 				Type:        ResultTypeCommit,
-				Label:       c.Hash[:7] + " " + msg,
+				Label:       truncHash(c.Hash) + " " + msg,
 				Description: c.Author,
 				Score:       score,
 				Data:        c,

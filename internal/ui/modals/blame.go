@@ -150,6 +150,9 @@ func (m *BlameModal) visibleLines() int {
 
 func (m *BlameModal) ensureCursorVisible() {
 	visible := m.visibleLines()
+	if visible <= 0 {
+		return
+	}
 
 	// Scroll down if cursor is below visible area
 	if m.cursor >= m.scroll+visible {
@@ -295,7 +298,11 @@ func (m *BlameModal) renderDiffView() string {
 	// Get the hash for the title
 	hash := ""
 	if m.cursor < len(m.lines) && m.lines[m.cursor].Hash != "" {
-		hash = m.lines[m.cursor].Hash[:7]
+		h := m.lines[m.cursor].Hash
+		if len(h) > 7 {
+			h = h[:7]
+		}
+		hash = h
 	}
 	title := m.styles.ModalTitle.Render(fmt.Sprintf(" Commit %s ", hash))
 

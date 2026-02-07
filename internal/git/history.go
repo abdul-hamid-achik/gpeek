@@ -1,6 +1,8 @@
 package git
 
 import (
+	"errors"
+
 	gogit "github.com/go-git/go-git/v5"
 	"github.com/go-git/go-git/v5/plumbing/object"
 )
@@ -50,7 +52,7 @@ func (r *Repository) FileHistory(path string, opts FileHistoryOptions) ([]Commit
 
 		// Stop when we've collected enough
 		if count >= limit {
-			return nil
+			return errIterLimit
 		}
 
 		var parents []string
@@ -72,7 +74,7 @@ func (r *Repository) FileHistory(path string, opts FileHistoryOptions) ([]Commit
 		return nil
 	})
 
-	if err != nil {
+	if err != nil && !errors.Is(err, errIterLimit) {
 		return nil, err
 	}
 

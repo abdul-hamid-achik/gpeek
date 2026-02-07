@@ -3,6 +3,8 @@ package tools
 import (
 	"context"
 	"fmt"
+	"os/exec"
+	"strings"
 
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 )
@@ -47,14 +49,87 @@ func handleConflictCheck(ctx context.Context, req *mcp.CallToolRequest, input Co
 		into = repo.CurrentBranch()
 	}
 
-	// This is a simplified check - in a real implementation we'd do a dry-run merge
+	// Use git merge-tree to check for conflicts without modifying the working tree
+	repoPath := DefaultPath(input.Path)
+	cmd := exec.Command("git", "merge-tree", "--write-tree", "--no-messages", into, input.Branch)
+	cmd.Dir = repoPath
+	output, err := cmd.CombinedOutput()
+
+	wouldConflict := false
+	conflictFiles := []string{}
+
+	if err != nil {
+		// Non-zero exit means conflicts were found
+		if exitErr, ok := err.(*exec.ExitError); ok && exitErr.ExitCode() == 1 {
+			wouldConflict = true
+			// Parse conflict file names from output
+			for _, line := range strings.Split(string(output), "\n") {
+				line = strings.TrimSpace(line)
+				if line != "" && !strings.Contains(line, " ") {
+					// Skip the tree hash on first line
+					continue
+				}
+				if strings.HasPrefix(line, "CONFLICT") {
+					conflictFiles = append(conflictFiles, line)
+				}
+			}
+		} else {
+			// git merge-tree --write-tree may not be available (requires Git 2.38+)
+			// Fall back to merge-base approach
+			return fallbackConflictCheck(repoPath, input.Branch, into)
+		}
+	}
+
 	response := ConflictCheckResponse{
-		Branch:         input.Branch,
-		Into:           into,
-		WouldConflict:  false, // Simplified - would need actual merge-base analysis
-		SafeToMerge:    true,
-		Recommendation: fmt.Sprintf("Run 'git merge %s --no-commit --no-ff' to test", input.Branch),
-		Note:           "This is a basic check. For accurate conflict detection, use git merge --dry-run",
+		Branch:        input.Branch,
+		Into:          into,
+		WouldConflict: wouldConflict,
+		SafeToMerge:   !wouldConflict,
+	}
+
+	if wouldConflict {
+		response.Recommendation = fmt.Sprintf("Resolve conflicts before merging %s into %s", input.Branch, into)
+		response.Note = fmt.Sprintf("Found %d conflict(s): %s", len(conflictFiles), strings.Join(conflictFiles, "; "))
+	} else {
+		response.Recommendation = fmt.Sprintf("Safe to merge %s into %s", input.Branch, into)
+		response.Note = "No conflicts detected via git merge-tree"
+	}
+
+	return ResultJSON(response)
+}
+
+// fallbackConflictCheck uses merge-base for older Git versions (< 2.38)
+func fallbackConflictCheck(repoPath, branch, into string) (*mcp.CallToolResult, any, error) {
+	// Get merge base
+	baseCmd := exec.Command("git", "merge-base", into, branch)
+	baseCmd.Dir = repoPath
+	baseOutput, err := baseCmd.Output()
+	if err != nil {
+		return ErrorResult(fmt.Sprintf("Failed to find merge base: %v", err)), nil, nil
+	}
+	mergeBase := strings.TrimSpace(string(baseOutput))
+
+	// Use old-style merge-tree with three args
+	cmd := exec.Command("git", "merge-tree", mergeBase, into, branch)
+	cmd.Dir = repoPath
+	output, _ := cmd.Output()
+
+	// If output contains conflict markers, there are conflicts
+	wouldConflict := strings.Contains(string(output), "changed in both")
+
+	response := ConflictCheckResponse{
+		Branch:        branch,
+		Into:          into,
+		WouldConflict: wouldConflict,
+		SafeToMerge:   !wouldConflict,
+	}
+
+	if wouldConflict {
+		response.Recommendation = fmt.Sprintf("Resolve conflicts before merging %s into %s", branch, into)
+		response.Note = "Conflicts detected via merge-tree (legacy mode)"
+	} else {
+		response.Recommendation = fmt.Sprintf("Safe to merge %s into %s", branch, into)
+		response.Note = "No conflicts detected via merge-tree (legacy mode)"
 	}
 
 	return ResultJSON(response)

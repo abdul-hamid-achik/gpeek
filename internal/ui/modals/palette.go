@@ -1,8 +1,11 @@
 package modals
 
 import (
+	"sort"
 	"strings"
 
+	"github.com/abdul-hamid-achik/gpeek/internal/search"
+	"github.com/abdul-hamid-achik/gpeek/internal/ui"
 	"github.com/charmbracelet/bubbles/key"
 	"github.com/charmbracelet/bubbles/textinput"
 	tea "github.com/charmbracelet/bubbletea"
@@ -42,8 +45,68 @@ type PaletteStyles struct {
 	Category        lipgloss.Style
 }
 
-// DefaultPaletteStyles returns default styles
-func DefaultPaletteStyles() PaletteStyles {
+// DefaultPaletteStyles returns default styles using the given theme
+func DefaultPaletteStyles(styles *ui.Styles) PaletteStyles {
+	theme := styles.Theme
+	return PaletteStyles{
+		Container: lipgloss.NewStyle().
+			Border(lipgloss.RoundedBorder()).
+			BorderForeground(lipgloss.Color(theme.Primary)).
+			Padding(0, 1),
+		Input: lipgloss.NewStyle().
+			Border(lipgloss.NormalBorder()).
+			BorderForeground(lipgloss.Color(theme.Border)).
+			Padding(0, 1),
+		Item: lipgloss.NewStyle().
+			Padding(0, 1),
+		ItemSelected: lipgloss.NewStyle().
+			Padding(0, 1).
+			Background(lipgloss.Color(theme.Selection)).
+			Foreground(lipgloss.Color(theme.Foreground)),
+		ItemTitle: lipgloss.NewStyle().
+			Foreground(lipgloss.Color(theme.Foreground)),
+		ItemDescription: lipgloss.NewStyle().
+			Foreground(lipgloss.Color(theme.Muted)),
+		ItemKeybinding: lipgloss.NewStyle().
+			Foreground(lipgloss.Color(theme.Accent)).
+			Bold(true),
+		Category: lipgloss.NewStyle().
+			Foreground(lipgloss.Color(theme.Muted)).
+			Italic(true),
+	}
+}
+
+// NewPaletteModal creates a new command palette modal
+func NewPaletteModal(commands []Command, onExecute func(Command) tea.Cmd, width, height int, uiStyles ...*ui.Styles) *PaletteModal {
+	input := textinput.New()
+	input.Placeholder = "Type to search commands..."
+	input.Focus()
+	input.CharLimit = 100
+	input.Width = width - 4
+
+	var ps PaletteStyles
+	if len(uiStyles) > 0 && uiStyles[0] != nil {
+		ps = DefaultPaletteStyles(uiStyles[0])
+	} else {
+		ps = defaultFallbackPaletteStyles()
+	}
+
+	m := &PaletteModal{
+		input:     input,
+		commands:  commands,
+		filtered:  commands,
+		selected:  0,
+		onExecute: onExecute,
+		styles:    ps,
+	}
+	m.width = width
+	m.height = height
+
+	return m
+}
+
+// defaultFallbackPaletteStyles returns hardcoded fallback styles when no theme is provided
+func defaultFallbackPaletteStyles() PaletteStyles {
 	return PaletteStyles{
 		Container: lipgloss.NewStyle().
 			Border(lipgloss.RoundedBorder()).
@@ -70,28 +133,6 @@ func DefaultPaletteStyles() PaletteStyles {
 			Foreground(lipgloss.Color("241")).
 			Italic(true),
 	}
-}
-
-// NewPaletteModal creates a new command palette modal
-func NewPaletteModal(commands []Command, onExecute func(Command) tea.Cmd, width, height int) *PaletteModal {
-	input := textinput.New()
-	input.Placeholder = "Type to search commands..."
-	input.Focus()
-	input.CharLimit = 100
-	input.Width = width - 4
-
-	m := &PaletteModal{
-		input:     input,
-		commands:  commands,
-		filtered:  commands,
-		selected:  0,
-		onExecute: onExecute,
-		styles:    DefaultPaletteStyles(),
-	}
-	m.width = width
-	m.height = height
-
-	return m
 }
 
 // Update handles input
@@ -155,29 +196,32 @@ func (m *PaletteModal) Update(msg tea.Msg) (Modal, tea.Cmd) {
 	return m, cmd
 }
 
-// filterCommands filters the command list based on input
+// filterCommands filters the command list using fuzzy matching (consistent with panel filter bars)
 func (m *PaletteModal) filterCommands() {
-	query := strings.ToLower(m.input.Value())
-	if query == "" {
+	input := strings.TrimSpace(m.input.Value())
+	if input == "" {
 		m.filtered = m.commands
 		m.selected = 0
 		return
 	}
 
-	var filtered []Command
-	for _, cmd := range m.commands {
-		titleLower := strings.ToLower(cmd.Title)
-		descLower := strings.ToLower(cmd.Description)
-		catLower := strings.ToLower(cmd.Category)
+	query := search.ParseQuery(input, search.DefaultQueryOptions())
 
-		if strings.Contains(titleLower, query) ||
-			strings.Contains(descLower, query) ||
-			strings.Contains(catLower, query) {
-			filtered = append(filtered, cmd)
-		}
+	// Use FilterWithScore to rank results by relevance
+	scored := search.FilterWithScore(m.commands, query, func(cmd Command) string {
+		return cmd.Title + " " + cmd.Description + " " + cmd.Category
+	})
+
+	// Sort by score descending (best matches first)
+	sort.Slice(scored, func(i, j int) bool {
+		return scored[i].Score > scored[j].Score
+	})
+
+	m.filtered = make([]Command, len(scored))
+	for i, s := range scored {
+		m.filtered[i] = s.Item
 	}
 
-	m.filtered = filtered
 	if m.selected >= len(m.filtered) {
 		m.selected = len(m.filtered) - 1
 		if m.selected < 0 {

@@ -13,12 +13,6 @@ import (
 	"github.com/charmbracelet/lipgloss"
 )
 
-type filePosition struct {
-	startLine int // Line number where file header starts
-	endLine   int // Line number where file content ends
-	expanded  bool
-}
-
 type DiffModal struct {
 	BaseModal
 	styles      *ui.Styles
@@ -31,7 +25,7 @@ type DiffModal struct {
 	focusedFile int          // Currently focused file index
 
 	// File position tracking for navigation
-	filePositions []filePosition
+	filePositions []diff.FilePosition
 
 	// Diff search
 	diffSearch *uisearch.DiffSearch
@@ -58,7 +52,7 @@ func NewDiffModal(styles *ui.Styles, title, diffContent string, width, height in
 		expanded:      expanded,
 		allExpanded:   false,
 		focusedFile:   0,
-		filePositions: make([]filePosition, len(parsedDiff.Files)),
+		filePositions: make([]diff.FilePosition, len(parsedDiff.Files)),
 		diffSearch:    uisearch.NewDiffSearch(styles),
 	}
 	m.width = width
@@ -69,167 +63,74 @@ func NewDiffModal(styles *ui.Styles, title, diffContent string, width, height in
 	return m
 }
 
-// fileLine represents a line in the file content for constrained rendering
-type fileLine struct {
-	isHunk bool
-	text   string
-	line   diff.Line
+func (m *DiffModal) contentStyles() diff.ContentStyles {
+	return diff.ContentStyles{
+		DiffMeta:    m.styles.DiffMeta,
+		DiffHunk:    m.styles.DiffHunk,
+		DiffAdd:     m.styles.DiffAdd,
+		DiffRemove:  m.styles.DiffRemove,
+		DiffContext:  m.styles.DiffContext,
+		SearchMatch: m.styles.SearchMatch,
+		FocusedFile: lipgloss.NewStyle().
+			Foreground(lipgloss.Color(m.styles.Theme.Background)).
+			Background(lipgloss.Color(m.styles.Theme.Primary)).
+			Bold(true),
+	}
+}
+
+func (m *DiffModal) matchProvider(lineNum int) []diff.LineMatch {
+	matches := m.diffSearch.GetLineMatches(lineNum)
+	if len(matches) == 0 {
+		return nil
+	}
+	result := make([]diff.LineMatch, len(matches))
+	for i, match := range matches {
+		result[i] = diff.LineMatch{StartCol: match.StartCol, EndCol: match.EndCol}
+	}
+	return result
+}
+
+func (m *DiffModal) highlightFn(content string, matches []diff.LineMatch, baseStyle lipgloss.Style) string {
+	var searchMatches []search.Match
+	for _, match := range matches {
+		searchMatches = append(searchMatches, search.Match{
+			Start: match.StartCol,
+			End:   match.EndCol,
+		})
+	}
+	h := search.NewHighlighter(m.styles.SearchMatch, baseStyle)
+	return h.Highlight(content, searchMatches)
 }
 
 func (m *DiffModal) renderContent() {
-	if len(m.parsedDiff.Files) == 0 {
+	if m.parsedDiff == nil || len(m.parsedDiff.Files) == 0 {
 		m.viewport.SetContent("No changes in this commit")
 		return
 	}
 
-	var content strings.Builder
-	lineNum := 0
-
-	for i, file := range m.parsedDiff.Files {
-		// Track file start position
-		m.filePositions[i].startLine = lineNum
-		m.filePositions[i].expanded = m.expanded[i]
-
-		// Render file header with expand/collapse indicator
-		indicator := "▶"
-		if m.expanded[i] {
-			indicator = "▼"
-		}
-
-		// Calculate stats for this file
-		adds, dels := m.countFileChanges(file)
-
-		// Determine filename to display
-		filename := file.NewName
-		if filename == "" || filename == "/dev/null" {
-			filename = file.OldName
-		}
-
-		// Build stats string
-		var stats string
-		if file.IsBinary {
-			stats = "(binary)"
-		} else {
-			stats = fmt.Sprintf("+%d -%d", adds, dels)
-		}
-
-		// Style header (highlight if focused)
-		header := fmt.Sprintf("%s %s  (%s)", indicator, filename, stats)
-
-		if i == m.focusedFile {
-			// Focused file header style
-			headerStyle := lipgloss.NewStyle().
-				Foreground(lipgloss.Color(m.styles.Theme.Background)).
-				Background(lipgloss.Color(m.styles.Theme.Primary)).
-				Bold(true)
-			content.WriteString(headerStyle.Render(header))
-		} else {
-			// Normal file header style
-			content.WriteString(m.styles.DiffMeta.Render(header))
-		}
-		content.WriteString("\n")
-		lineNum++
-
-		// Render file content if expanded (and not binary)
-		if m.expanded[i] && !file.IsBinary {
-			// Collect all lines for this file
-			var fileLines []fileLine
-			for _, hunk := range file.Hunks {
-				fileLines = append(fileLines, fileLine{isHunk: true, text: hunk.Header})
-				for _, line := range hunk.Lines {
-					fileLines = append(fileLines, fileLine{line: line})
-				}
-			}
-
-			// Render ALL lines (no constraint)
-			for j := 0; j < len(fileLines); j++ {
-				fl := fileLines[j]
-				if fl.isHunk {
-					content.WriteString(m.styles.DiffHunk.Render(fl.text))
-				} else {
-					content.WriteString(m.renderLine(fl.line, lineNum))
-				}
-				content.WriteString("\n")
-				lineNum++
-			}
-
-			content.WriteString("\n")
-			lineNum++
-		}
-
-		// Track file end position
-		m.filePositions[i].endLine = lineNum
-	}
-
-	contentStr := content.String()
+	contentStr, positions := diff.RenderContent(
+		m.parsedDiff,
+		m.expanded,
+		m.focusedFile,
+		m.contentStyles(),
+		m.matchProvider,
+		m.highlightFn,
+	)
+	m.filePositions = positions
 	m.viewport.SetContent(contentStr)
 	m.diffSearch.SetContent(contentStr)
 }
 
-func (m *DiffModal) countFileChanges(file diff.FileDiff) (adds, dels int) {
-	for _, hunk := range file.Hunks {
-		for _, line := range hunk.Lines {
-			switch line.Type {
-			case diff.DiffAdd:
-				adds++
-			case diff.DiffRemove:
-				dels++
-			}
-		}
-	}
-	return
-}
-
-func (m *DiffModal) renderLine(line diff.Line, lineNum int) string {
-	prefix := " "
-	var baseStyle lipgloss.Style
-
-	switch line.Type {
-	case diff.DiffAdd:
-		prefix = "+"
-		baseStyle = m.styles.DiffAdd
-	case diff.DiffRemove:
-		prefix = "-"
-		baseStyle = m.styles.DiffRemove
-	default:
-		baseStyle = m.styles.DiffContext
-	}
-
-	content := line.Content
-
-	// Apply search highlighting if matches exist
-	matches := m.diffSearch.GetLineMatches(lineNum)
-	if len(matches) > 0 {
-		// Convert to search.Match format and highlight
-		var searchMatches []search.Match
-		for _, match := range matches {
-			searchMatches = append(searchMatches, search.Match{
-				Start: match.StartCol,
-				End:   match.EndCol,
-			})
-		}
-		h := search.NewHighlighter(m.styles.SearchMatch, baseStyle)
-		return baseStyle.Render(prefix) + h.Highlight(content, searchMatches)
-	}
-
-	return baseStyle.Render(prefix + content)
-}
-
-func (m *DiffModal) isAllCollapsed() bool {
-	for _, exp := range m.expanded {
-		if exp {
-			return false
-		}
-	}
-	return true
-}
-
 // getVisibleFileIndex returns which file is currently most visible in the viewport
 func (m *DiffModal) getVisibleFileIndex() int {
+	if len(m.filePositions) == 0 {
+		return 0
+	}
+
 	viewMiddle := m.viewport.YOffset + m.viewport.Height/2
 
 	for i, pos := range m.filePositions {
-		if viewMiddle >= pos.startLine && viewMiddle < pos.endLine {
+		if viewMiddle >= pos.StartLine && viewMiddle < pos.EndLine {
 			return i
 		}
 	}
@@ -245,7 +146,7 @@ func (m *DiffModal) scrollToFile(fileIdx int) {
 	}
 
 	// Scroll to the file header line
-	m.viewport.SetYOffset(m.filePositions[fileIdx].startLine)
+	m.viewport.SetYOffset(m.filePositions[fileIdx].StartLine)
 }
 
 func (m *DiffModal) Update(msg tea.Msg) (Modal, tea.Cmd) {
@@ -257,6 +158,8 @@ func (m *DiffModal) Update(msg tea.Msg) (Modal, tea.Cmd) {
 		}
 		return m, searchCmd
 	}
+
+	hasFiles := m.parsedDiff != nil && len(m.parsedDiff.Files) > 0
 
 	switch msg := msg.(type) {
 	case tea.KeyMsg:
@@ -288,17 +191,17 @@ func (m *DiffModal) Update(msg tea.Msg) (Modal, tea.Cmd) {
 			}
 		case "enter", " ":
 			// Toggle focused file expansion
-			if len(m.parsedDiff.Files) > 0 {
+			if hasFiles && m.focusedFile < len(m.parsedDiff.Files) {
 				m.expanded[m.focusedFile] = !m.expanded[m.focusedFile]
 				// Update allExpanded state
-				m.allExpanded = !m.isAllCollapsed()
+				m.allExpanded = !diff.IsAllCollapsed(m.expanded)
 				m.renderContent()
 				// Scroll to keep file header visible
 				m.scrollToFile(m.focusedFile)
 			}
 		case "a":
 			// Toggle all files
-			if len(m.parsedDiff.Files) > 0 {
+			if hasFiles {
 				m.allExpanded = !m.allExpanded
 				for i := range m.parsedDiff.Files {
 					m.expanded[i] = m.allExpanded
@@ -310,13 +213,13 @@ func (m *DiffModal) Update(msg tea.Msg) (Modal, tea.Cmd) {
 			// Hybrid navigation:
 			// - If file is expanded and not at bottom of content, scroll down
 			// - Otherwise, move to next file
-			if len(m.parsedDiff.Files) > 0 {
+			if hasFiles && m.focusedFile < len(m.filePositions) {
 				currentPos := m.filePositions[m.focusedFile]
 
 				if m.expanded[m.focusedFile] {
 					// Check if there's more content below in current file
 					viewBottom := m.viewport.YOffset + m.viewport.Height
-					if currentPos.endLine > viewBottom {
+					if currentPos.EndLine > viewBottom {
 						// More content below, scroll down
 						m.viewport.ScrollDown(1)
 						// Update focused file based on what's now visible
@@ -337,12 +240,12 @@ func (m *DiffModal) Update(msg tea.Msg) (Modal, tea.Cmd) {
 			// Hybrid navigation:
 			// - If file is expanded and not at top of content, scroll up
 			// - Otherwise, move to previous file
-			if len(m.parsedDiff.Files) > 0 {
+			if hasFiles && m.focusedFile < len(m.filePositions) {
 				currentPos := m.filePositions[m.focusedFile]
 
 				if m.expanded[m.focusedFile] {
 					// Check if we're not at the top of the file content
-					if m.viewport.YOffset > currentPos.startLine {
+					if m.viewport.YOffset > currentPos.StartLine {
 						// Can scroll up within file
 						m.viewport.ScrollUp(1)
 						// Update focused file based on what's now visible
@@ -361,28 +264,28 @@ func (m *DiffModal) Update(msg tea.Msg) (Modal, tea.Cmd) {
 			}
 		case "J":
 			// Always move to next file (Shift+j)
-			if len(m.parsedDiff.Files) > 0 && m.focusedFile < len(m.parsedDiff.Files)-1 {
+			if hasFiles && m.focusedFile < len(m.parsedDiff.Files)-1 {
 				m.focusedFile++
 				m.renderContent()
 				m.scrollToFile(m.focusedFile)
 			}
 		case "K":
 			// Always move to previous file (Shift+k)
-			if len(m.parsedDiff.Files) > 0 && m.focusedFile > 0 {
+			if hasFiles && m.focusedFile > 0 {
 				m.focusedFile--
 				m.renderContent()
 				m.scrollToFile(m.focusedFile)
 			}
 		case "}":
 			// Jump to next file
-			if len(m.parsedDiff.Files) > 0 && m.focusedFile < len(m.parsedDiff.Files)-1 {
+			if hasFiles && m.focusedFile < len(m.parsedDiff.Files)-1 {
 				m.focusedFile++
 				m.renderContent()
 				m.scrollToFile(m.focusedFile)
 			}
 		case "{":
 			// Jump to previous file
-			if len(m.parsedDiff.Files) > 0 && m.focusedFile > 0 {
+			if hasFiles && m.focusedFile > 0 {
 				m.focusedFile--
 				m.renderContent()
 				m.scrollToFile(m.focusedFile)
@@ -397,12 +300,16 @@ func (m *DiffModal) Update(msg tea.Msg) (Modal, tea.Cmd) {
 			m.renderContent()
 		case "g":
 			m.viewport.GotoTop()
-			m.focusedFile = 0
+			if hasFiles {
+				m.focusedFile = 0
+			}
 			m.renderContent()
 		case "G":
 			m.viewport.GotoBottom()
-			m.focusedFile = len(m.parsedDiff.Files) - 1
-			m.renderContent()
+			if hasFiles {
+				m.focusedFile = len(m.parsedDiff.Files) - 1
+				m.renderContent()
+			}
 		}
 	}
 

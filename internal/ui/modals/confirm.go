@@ -33,7 +33,13 @@ func (m *ConfirmModal) Update(msg tea.Msg) (Modal, tea.Cmd) {
 		switch msg.String() {
 		case "esc", "n", "N":
 			return nil, nil
-		case "y", "Y", "enter":
+		case "y", "Y":
+			// y/Y always confirms regardless of button focus
+			if m.onConfirm != nil {
+				return nil, m.onConfirm()
+			}
+			return nil, nil
+		case "enter":
 			if m.focused == 0 && m.onConfirm != nil {
 				return nil, m.onConfirm()
 			}

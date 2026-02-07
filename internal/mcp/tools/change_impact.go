@@ -3,6 +3,7 @@ package tools
 import (
 	"context"
 	"fmt"
+	"os"
 	"path/filepath"
 	"strings"
 
@@ -223,7 +224,9 @@ func findTestFile(file string) string {
 	}
 
 	for _, pattern := range testPatterns {
-		return pattern // Return the first likely pattern
+		if _, err := os.Stat(pattern); err == nil {
+			return pattern
+		}
 	}
 	return ""
 }
@@ -284,7 +287,21 @@ func extractChangedFiles(diff string) []string {
 }
 
 func hasTestsInRepo(repo *git.Repository) bool {
-	// Simple heuristic: check for common test directories
-	// In a real implementation, we'd check the file system
-	return true // Assume tests exist
+	repoPath := repo.Path()
+	// Check for common test directory patterns
+	testDirs := []string{"test", "tests", "spec", "specs", "__tests__"}
+	for _, dir := range testDirs {
+		if info, err := os.Stat(filepath.Join(repoPath, dir)); err == nil && info.IsDir() {
+			return true
+		}
+	}
+	// Check for test files matching common patterns in the root
+	testGlobs := []string{"*_test.go", "*.test.js", "*.test.ts", "*.spec.js", "*.spec.ts", "test_*.py"}
+	for _, pattern := range testGlobs {
+		matches, _ := filepath.Glob(filepath.Join(repoPath, pattern))
+		if len(matches) > 0 {
+			return true
+		}
+	}
+	return false
 }

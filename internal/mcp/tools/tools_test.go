@@ -65,9 +65,10 @@ func TestValidatePath(t *testing.T) {
 		wantErr bool
 	}{
 		{"current directory", ".", false},
-		{"absolute path", "/tmp/repo", false},
+		{"absolute path", "/tmp/repo", true},
 		{"relative path", "subdir/file", false},
 		{"path with spaces", "path with spaces", false},
+		{"path traversal", "../../../etc/passwd", true},
 	}
 
 	for _, tt := range tests {

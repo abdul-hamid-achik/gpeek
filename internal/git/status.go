@@ -1,6 +1,12 @@
 package git
 
 import (
+	"fmt"
+	"os"
+	"os/exec"
+	"path/filepath"
+	"strings"
+
 	gogit "github.com/go-git/go-git/v5"
 )
 
@@ -137,49 +143,27 @@ func (r *Repository) StageAll() error {
 }
 
 func (r *Repository) Unstage(path string) error {
-	wt, err := r.repo.Worktree()
+	// Use git reset to unstage just the specified file, not the entire repo
+	cmd := exec.Command("git", "reset", "HEAD", "--", path)
+	cmd.Dir = r.path
+	output, err := cmd.CombinedOutput()
 	if err != nil {
-		return err
+		return fmt.Errorf("unstage failed: %s", strings.TrimSpace(string(output)))
 	}
-
-	_, err = wt.Remove(path)
-	if err != nil {
-		head, err := r.repo.Head()
-		if err != nil {
-			return err
-		}
-
-		commit, err := r.repo.CommitObject(head.Hash())
-		if err != nil {
-			return err
-		}
-
-		tree, err := commit.Tree()
-		if err != nil {
-			return err
-		}
-
-		_, err = tree.File(path)
-		if err != nil {
-			return wt.Reset(&gogit.ResetOptions{Mode: gogit.MixedReset})
-		}
-	}
-	return err
+	return nil
 }
 
 func (r *Repository) Discard(path string) error {
-	wt, err := r.repo.Worktree()
+	// Restore just the specified file from HEAD, not the entire repo
+	cmd := exec.Command("git", "checkout", "HEAD", "--", path)
+	cmd.Dir = r.path
+	output, err := cmd.CombinedOutput()
 	if err != nil {
-		return err
+		// File may be untracked (not in HEAD) - remove it from the working tree
+		absPath := filepath.Join(r.path, path)
+		if removeErr := os.Remove(absPath); removeErr != nil {
+			return fmt.Errorf("discard failed: %s", strings.TrimSpace(string(output)))
+		}
 	}
-
-	head, err := r.repo.Head()
-	if err != nil {
-		return err
-	}
-
-	return wt.Reset(&gogit.ResetOptions{
-		Commit: head.Hash(),
-		Mode:   gogit.HardReset,
-	})
+	return nil
 }

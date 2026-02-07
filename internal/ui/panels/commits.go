@@ -163,7 +163,10 @@ func (p *CommitsPanel) View() string {
 }
 
 func (p *CommitsPanel) renderCommit(c git.Commit, selected bool) string {
-	hash := c.Hash[:7]
+	hash := c.Hash
+	if len(hash) > 7 {
+		hash = hash[:7]
+	}
 	msg := c.Message
 	timeStr := p.formatTime(c.Time)
 	graph := p.renderGraph(c)

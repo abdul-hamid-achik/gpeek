@@ -359,10 +359,14 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			case ui.PanelCommits:
 				if commit := m.commitsPanel.SelectedCommit(); commit != nil {
 					diff, _ := m.repo.CommitDiff(commit.Hash)
-					title := commit.Hash[:7] + " - " + commit.Message
+					hash := commit.Hash
+					if len(hash) > 7 {
+						hash = hash[:7]
+					}
+					title := hash + " - " + commit.Message
 					titleWidth := lipgloss.Width(title)
 					maxWidth := m.width - 8
-					if titleWidth > maxWidth {
+					if titleWidth > maxWidth && maxWidth > 3 {
 						title = title[:maxWidth-3] + "..."
 					}
 					m.activeModal = modals.NewDiffModal(m.styles, title, diff, m.width-4, m.height-4)
@@ -463,7 +467,11 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				func(commit *git.Commit) tea.Cmd {
 					// Show commit diff
 					diff, _ := m.repo.CommitDiff(commit.Hash)
-					title := commit.Hash[:7] + " - " + commit.Message
+					hash := commit.Hash
+					if len(hash) > 7 {
+						hash = hash[:7]
+					}
+					title := hash + " - " + commit.Message
 					m.activeModal = modals.NewDiffModal(m.styles, title, diff, m.width-4, m.height-4)
 					return nil
 				},
@@ -483,6 +491,7 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				m.executeCommand,
 				m.width-20,
 				m.height-10,
+				m.styles,
 			)
 			return m, nil
 
@@ -556,6 +565,10 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				m.refreshTags(),
 			)
 		}
+		// Auto-clear status message after 5 seconds
+		cmds = append(cmds, tea.Tick(5*time.Second, func(time.Time) tea.Msg {
+			return statusClearMsg{}
+		}))
 
 	case statusClearMsg:
 		if time.Since(m.statusTime) >= 5*time.Second {
@@ -734,9 +747,116 @@ func (m *Model) executeCommand(cmd modals.Command) tea.Cmd {
 		return tea.Quit
 	case "git_config":
 		m.activeModal = modals.NewGitConfigModal(m.styles, m.repo, m.width-8, m.height-8)
-	// Commands that need more context - just show status for now
-	case "commit", "stash", "worktree", "stage", "unstage", "discard", "push", "pull", "fetch":
-		m.setStatus(fmt.Sprintf("Use keyboard shortcut for '%s'", cmd.Title), false)
+	case "commit":
+		staged := m.filesPanel.StagedFiles()
+		if len(staged) > 0 {
+			lastMsg, lastHash, _ := m.repo.GetLastCommitInfo()
+			m.activeModal = modals.NewCommitModal(m.styles, staged, lastMsg, lastHash, func(message string, isAmend bool) tea.Cmd {
+				return func() tea.Msg {
+					var err error
+					if isAmend {
+						err = m.repo.AmendCommit(message)
+					} else {
+						err = m.repo.Commit(message)
+					}
+					if err != nil {
+						return gitStatusMsg{err: err}
+					}
+					return refreshMsg{}
+				}
+			})
+		} else {
+			m.setStatus("No staged changes to commit", true)
+		}
+	case "stash":
+		stashes, _ := m.repo.StashList()
+		m.activeModal = modals.NewStashModal(m.styles, stashes, m.repo, m.width-8, m.height-8)
+	case "worktree":
+		worktrees, _ := m.repo.ListWorktrees()
+		m.activeModal = modals.NewWorktreeModal(m.styles, worktrees, m.repo)
+	case "stage":
+		if m.focused == ui.PanelFiles {
+			if file := m.filesPanel.SelectedFile(); file != nil {
+				if err := m.repo.Stage(file.Path); err != nil {
+					m.setStatus(err.Error(), true)
+				} else {
+					m.setStatus("Staged "+file.Path, false)
+					return m.refreshStatus()
+				}
+			}
+		}
+	case "unstage":
+		if m.focused == ui.PanelFiles {
+			if file := m.filesPanel.SelectedFile(); file != nil {
+				if err := m.repo.Unstage(file.Path); err != nil {
+					m.setStatus(err.Error(), true)
+				} else {
+					m.setStatus("Unstaged "+file.Path, false)
+					return m.refreshStatus()
+				}
+			}
+		}
+	case "discard":
+		if m.focused == ui.PanelFiles {
+			if file := m.filesPanel.SelectedFile(); file != nil {
+				filePath := file.Path
+				m.activeModal = modals.NewConfirmModal(
+					m.styles,
+					"Discard Changes",
+					"Discard all changes to "+filePath+"?\nThis cannot be undone.",
+					func() tea.Cmd {
+						return func() tea.Msg {
+							if err := m.repo.Discard(filePath); err != nil {
+								return operationDoneMsg{err: err}
+							}
+							return operationDoneMsg{success: "Discarded changes to " + filePath}
+						}
+					},
+				)
+			}
+		}
+	case "push":
+		branch := m.repo.CurrentBranch()
+		m.activeModal = modals.NewConfirmModal(
+			m.styles,
+			"Push",
+			"Push commits to remote for branch '"+branch+"'?",
+			func() tea.Cmd {
+				return func() tea.Msg {
+					if err := m.repo.Push(); err != nil {
+						return operationDoneMsg{err: err}
+					}
+					return operationDoneMsg{success: "Pushed to remote"}
+				}
+			},
+		)
+	case "pull":
+		m.operationStatus = "Pulling..."
+		return func() tea.Msg {
+			if err := m.repo.Pull(); err != nil {
+				return operationDoneMsg{err: err}
+			}
+			return operationDoneMsg{success: "Pulled from remote"}
+		}
+	case "fetch":
+		m.operationStatus = "Fetching..."
+		return func() tea.Msg {
+			if err := m.repo.Fetch(); err != nil {
+				return operationDoneMsg{err: err}
+			}
+			return operationDoneMsg{success: "Fetched from remote"}
+		}
+	case "search":
+		worktrees, _ := m.repo.ListWorktrees()
+		m.searchModal = uisearch.NewSearchModal(
+			m.styles,
+			m.cachedBranches,
+			m.cachedCommits,
+			worktrees,
+			m.repo.CurrentBranch(),
+			m.width-8,
+			m.height-8,
+		)
 	default:
 		m.setStatus(fmt.Sprintf("Command '%s' executed", cmd.Title), false)
 	}

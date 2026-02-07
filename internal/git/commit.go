@@ -1,12 +1,15 @@
 package git
 
 import (
+	"errors"
 	"time"
 
 	gogit "github.com/go-git/go-git/v5"
 	"github.com/go-git/go-git/v5/plumbing"
 	"github.com/go-git/go-git/v5/plumbing/object"
 )
+
+var errIterLimit = errors.New("iteration limit reached")
 
 type Commit struct {
 	Hash    string    `json:"hash"`
@@ -87,7 +90,7 @@ func (r *Repository) Log(limit int) ([]Commit, error) {
 	count := 0
 	err = iter.ForEach(func(c *object.Commit) error {
 		if count >= limit {
-			return nil
+			return errIterLimit
 		}
 
 		var parents []string
@@ -109,7 +112,7 @@ func (r *Repository) Log(limit int) ([]Commit, error) {
 		return nil
 	})
 
-	if err != nil {
+	if err != nil && !errors.Is(err, errIterLimit) {
 		return nil, err
 	}
 

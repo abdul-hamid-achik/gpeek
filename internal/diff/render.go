@@ -99,7 +99,9 @@ func (r *Renderer) renderLine(line Line, width int) string {
 
 	content := line.Content
 	maxContentWidth := width - lineNumWidth - 3
-	if len(content) > maxContentWidth && maxContentWidth > 0 {
+	if len(content) > maxContentWidth && maxContentWidth > 3 {
+		content = content[:maxContentWidth-3] + "..."
+	} else if len(content) > maxContentWidth && maxContentWidth > 0 {
 		content = content[:maxContentWidth]
 	}
 
@@ -182,8 +184,11 @@ func (r *Renderer) renderSideLine(line Line, width int, isLeft bool) string {
 	}
 
 	content := line.Content
-	if len(content) > width-6 && width > 6 {
-		content = content[:width-9] + "..."
+	maxWidth := width - 6
+	if len(content) > maxWidth && maxWidth > 3 {
+		content = content[:maxWidth-3] + "..."
+	} else if len(content) > maxWidth && maxWidth > 0 {
+		content = content[:maxWidth]
 	}
 
 	var lineNum string
@@ -195,7 +200,9 @@ func (r *Renderer) renderSideLine(line Line, width int, isLeft bool) string {
 		lineNum = "    "
 	}
 
-	padding := width - len(lineNum) - 1 - len(content)
+	// Use visual width for padding calculation since content may contain multi-byte chars
+	contentWidth := len(content) // plain text before styling, len() is fine here
+	padding := width - len(lineNum) - 1 - contentWidth
 	if padding < 0 {
 		padding = 0
 	}
