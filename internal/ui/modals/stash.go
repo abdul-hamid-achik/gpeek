@@ -312,6 +312,11 @@ func (m *StashModal) renderListView() string {
 	)
 }
 
+func (m *StashModal) isToolGenerated(message string) bool {
+	lower := strings.ToLower(message)
+	return strings.Contains(lower, ".claude") || strings.Contains(lower, ".vecgrep")
+}
+
 func (m *StashModal) renderStashItem(s git.Stash, selected bool) string {
 	prefix := "  "
 	if selected {
@@ -331,6 +336,11 @@ func (m *StashModal) renderStashItem(s git.Stash, selected bool) string {
 	line := fmt.Sprintf("%sstash@{%d}: %s", prefix, s.Index, message)
 	if s.Branch != "" {
 		line = fmt.Sprintf("%sstash@{%d} [%s]: %s", prefix, s.Index, s.Branch, message)
+	}
+
+	// Add tool-generated indicator
+	if m.isToolGenerated(s.Message) {
+		line += " " + m.styles.Dim.Render("[tool]")
 	}
 
 	// Add time info

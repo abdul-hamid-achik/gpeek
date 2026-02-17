@@ -138,6 +138,9 @@ func (p *CommitsPanel) View() string {
 	if p.filterBar.IsActive() || p.filterBar.HasFilter() {
 		contentHeight -= p.filterBar.FilterHeight()
 	}
+	if contentHeight < 1 {
+		contentHeight = 1
+	}
 
 	var lines []string
 
@@ -182,6 +185,9 @@ func (p *CommitsPanel) renderCommit(c git.Commit, selected bool) string {
 	prefixWidth := lipgloss.Width(prefix)
 	suffixWidth := lipgloss.Width(suffix)
 	availableWidth := p.width - prefixWidth - suffixWidth - 2
+	if availableWidth < 0 {
+		availableWidth = 0
+	}
 
 	// Truncate message if needed using visual width
 	if lipgloss.Width(msg) > availableWidth && availableWidth > 3 {
@@ -264,6 +270,9 @@ func (p *CommitsPanel) adjustOffset() {
 	contentHeight := p.height
 	if p.filterBar.IsActive() || p.filterBar.HasFilter() {
 		contentHeight -= p.filterBar.FilterHeight()
+	}
+	if contentHeight < 1 {
+		contentHeight = 1
 	}
 
 	if p.cursor < p.offset {

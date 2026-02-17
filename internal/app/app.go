@@ -375,7 +375,7 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 		case key.Matches(msg, m.keys.NewBranch):
 			if m.focused == ui.PanelBranches {
-				m.activeModal = modals.NewInputModal(
+				inputModal := modals.NewInputModal(
 					m.styles,
 					"New Branch",
 					"Enter branch name:",
@@ -389,6 +389,8 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 						}
 					},
 				)
+				inputModal.SetTerminalWidth(m.width)
+				m.activeModal = inputModal
 			}
 
 		case key.Matches(msg, m.keys.DeleteBranch):

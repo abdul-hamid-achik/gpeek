@@ -18,6 +18,7 @@ type InputModal struct {
 	onSubmit    func(string) tea.Cmd
 	err         string
 	placeholder string
+	modalWidth  int
 }
 
 func NewInputModal(styles *ui.Styles, title, prompt, placeholder string, onSubmit func(string) tea.Cmd) *InputModal {
@@ -34,7 +35,22 @@ func NewInputModal(styles *ui.Styles, title, prompt, placeholder string, onSubmi
 		textinput:   ti,
 		onSubmit:    onSubmit,
 		placeholder: placeholder,
+		modalWidth:  40,
 	}
+}
+
+// SetTerminalWidth adjusts the modal width based on terminal size.
+func (m *InputModal) SetTerminalWidth(termWidth int) {
+	w := termWidth - 10
+	if w > 60 {
+		w = 60
+	}
+	if w < 30 {
+		w = 30
+	}
+	m.modalWidth = w
+	// Account for modal padding (2 on each side) and border (1 on each side)
+	m.textinput.Width = w - 6
 }
 
 func (m *InputModal) Update(msg tea.Msg) (Modal, tea.Cmd) {
@@ -82,7 +98,7 @@ func (m *InputModal) View() string {
 		footer,
 	)
 
-	modal := m.styles.Modal.Render(body)
+	modal := m.styles.Modal.Width(m.modalWidth).Render(body)
 
 	lines := strings.Split(modal, "\n")
 	if len(lines) > 0 {

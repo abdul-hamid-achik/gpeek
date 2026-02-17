@@ -247,6 +247,45 @@ type TagDetailInfo struct {
 	IsAnnotated bool   `json:"is_annotated"`
 }
 
+// StageResponse is the response for stage operations
+type StageResponse struct {
+	Staged []FileInfo `json:"staged"`
+	Total  int        `json:"total"`
+}
+
+// UnstageResponse is the response for unstage operations
+type UnstageResponse struct {
+	Remaining []FileInfo `json:"remaining_staged"`
+	Total     int        `json:"total"`
+}
+
+// CommitWriteResponse is the response for commit operations
+type CommitWriteResponse struct {
+	Hash      string `json:"hash"`
+	ShortHash string `json:"short_hash"`
+	Message   string `json:"message"`
+}
+
+// StashSaveResponse is the response for stash save operations
+type StashSaveResponse struct {
+	Reference string `json:"reference"`
+	Message   string `json:"message"`
+}
+
+// StashOpResponse is the response for stash pop/drop operations
+type StashOpResponse struct {
+	Success   bool   `json:"success"`
+	Message   string `json:"message"`
+	Reference string `json:"reference"`
+}
+
+// DiscardResponse is the response for discard operations
+type DiscardResponse struct {
+	Success bool   `json:"success"`
+	Message string `json:"message"`
+	Path    string `json:"path"`
+}
+
 // Builder functions
 
 // BuildDiffResponse builds a DiffResponse from parsed diff

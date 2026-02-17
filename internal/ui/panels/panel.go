@@ -18,6 +18,12 @@ type BasePanel struct {
 }
 
 func (b *BasePanel) SetSize(width, height int) {
+	if width < 1 {
+		width = 1
+	}
+	if height < 1 {
+		height = 1
+	}
 	b.width = width
 	b.height = height
 }

@@ -205,6 +205,9 @@ func (p *BranchesPanel) View() string {
 	if p.filterBar.IsActive() || p.filterBar.HasFilter() {
 		contentHeight -= p.filterBar.FilterHeight()
 	}
+	if contentHeight < 1 {
+		contentHeight = 1
+	}
 
 	content := strings.Join(lines, "\n")
 

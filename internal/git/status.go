@@ -142,6 +142,16 @@ func (r *Repository) StageAll() error {
 	return err
 }
 
+func (r *Repository) UnstageAll() error {
+	cmd := exec.Command("git", "reset", "HEAD")
+	cmd.Dir = r.path
+	output, err := cmd.CombinedOutput()
+	if err != nil {
+		return fmt.Errorf("unstage all failed: %s", strings.TrimSpace(string(output)))
+	}
+	return nil
+}
+
 func (r *Repository) Unstage(path string) error {
 	// Use git reset to unstage just the specified file, not the entire repo
 	cmd := exec.Command("git", "reset", "HEAD", "--", path)

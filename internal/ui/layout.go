@@ -166,6 +166,13 @@ func (f FocusedPanel) String() string {
 }
 
 func RenderBorder(content, title string, width, height int, focused bool, styles *Styles) string {
+	if width < 4 {
+		width = 4
+	}
+	if height < 3 {
+		height = 3
+	}
+
 	style := styles.Panel
 	titleStyle := styles.PanelTitle
 

@@ -371,7 +371,11 @@ func (p *PreviewPanel) Update(msg tea.Msg) tea.Cmd {
 
 func (p *PreviewPanel) View() string {
 	if p.content == "" {
-		return p.styles.Dim.Render("Select a file or commit to preview")
+		msg := p.styles.Dim.Render("Select a file or commit to preview")
+		if p.width > 0 && p.height > 0 {
+			return lipgloss.Place(p.width, p.height, lipgloss.Center, lipgloss.Center, msg)
+		}
+		return msg
 	}
 
 	// Calculate content height (reserve space for search bar if active)
