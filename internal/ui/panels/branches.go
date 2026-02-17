@@ -20,6 +20,12 @@ type BranchesPanel struct {
 	current          string
 	cursor           int
 
+	remoteBranches         []git.Branch
+	filteredRemoteBranches []git.Branch
+	showRemotes            bool
+	remoteCursor           int
+	inRemoteSection        bool
+
 	worktrees         []git.Worktree
 	showWorktrees     bool
 	worktreeCursor    int
@@ -58,8 +64,13 @@ func (p *BranchesPanel) applyFilter() {
 		})
 	}
 
-	// Update filter bar counts
-	p.filterBar.SetCounts(len(p.filteredBranches), len(p.allBranches))
+	// Also filter remote branches
+	p.applyRemoteFilter()
+
+	// Update filter bar counts (include remote branches in totals)
+	totalAll := len(p.allBranches) + len(p.remoteBranches)
+	totalFiltered := len(p.filteredBranches) + len(p.filteredRemoteBranches)
+	p.filterBar.SetCounts(totalFiltered, totalAll)
 
 	// Adjust cursor if needed
 	if p.cursor >= len(p.filteredBranches) && len(p.filteredBranches) > 0 {
@@ -67,6 +78,29 @@ func (p *BranchesPanel) applyFilter() {
 	}
 	if len(p.filteredBranches) == 0 {
 		p.cursor = 0
+	}
+}
+
+func (p *BranchesPanel) SetRemoteBranches(branches []git.Branch) {
+	p.remoteBranches = branches
+	p.applyRemoteFilter()
+}
+
+func (p *BranchesPanel) applyRemoteFilter() {
+	query := p.filterBar.GetQuery()
+	if query.Text == "" {
+		p.filteredRemoteBranches = p.remoteBranches
+	} else {
+		p.filteredRemoteBranches = search.Filter(p.remoteBranches, query, func(b git.Branch) string {
+			return b.Name
+		})
+	}
+	// Adjust remote cursor if needed
+	if p.remoteCursor >= len(p.filteredRemoteBranches) && len(p.filteredRemoteBranches) > 0 {
+		p.remoteCursor = len(p.filteredRemoteBranches) - 1
+	}
+	if len(p.filteredRemoteBranches) == 0 {
+		p.remoteCursor = 0
 	}
 }
 
@@ -113,20 +147,40 @@ func (p *BranchesPanel) Update(msg tea.Msg) tea.Cmd {
 			p.moveUp()
 		case "g":
 			p.cursor = 0
+			p.inRemoteSection = false
 			p.inWorktreeSection = false
+			p.inTagSection = false
 		case "G":
 			if p.showTags && len(p.tags) > 0 {
+				p.inRemoteSection = false
 				p.inWorktreeSection = false
 				p.inTagSection = true
 				p.tagCursor = len(p.tags) - 1
 			} else if p.showWorktrees && len(p.worktrees) > 0 {
+				p.inRemoteSection = false
 				p.inTagSection = false
 				p.inWorktreeSection = true
 				p.worktreeCursor = len(p.worktrees) - 1
+			} else if p.showRemotes && len(p.filteredRemoteBranches) > 0 {
+				p.inTagSection = false
+				p.inWorktreeSection = false
+				p.inRemoteSection = true
+				p.remoteCursor = len(p.filteredRemoteBranches) - 1
 			} else if len(p.filteredBranches) > 0 {
 				p.inTagSection = false
 				p.inWorktreeSection = false
+				p.inRemoteSection = false
 				p.cursor = len(p.filteredBranches) - 1
+			}
+		case "R":
+			if len(p.remoteBranches) > 0 {
+				p.showRemotes = !p.showRemotes
+				if !p.showRemotes && p.inRemoteSection {
+					p.inRemoteSection = false
+					if len(p.filteredBranches) > 0 {
+						p.cursor = len(p.filteredBranches) - 1
+					}
+				}
 			}
 		case "W":
 			if len(p.worktrees) > 0 {
@@ -174,8 +228,19 @@ func (p *BranchesPanel) View() string {
 	lines = append(lines, header)
 
 	for i, b := range branches {
-		line := p.renderBranch(b, i == p.cursor && !p.inWorktreeSection)
+		line := p.renderBranch(b, i == p.cursor && !p.inRemoteSection && !p.inWorktreeSection && !p.inTagSection)
 		lines = append(lines, line)
+	}
+
+	if p.showRemotes && len(p.filteredRemoteBranches) > 0 {
+		lines = append(lines, "")
+		remoteHeader := p.styles.Bold.Render(fmt.Sprintf("Remote (%d)", len(p.filteredRemoteBranches)))
+		lines = append(lines, remoteHeader)
+
+		for i, b := range p.filteredRemoteBranches {
+			line := p.renderRemoteBranch(b, i == p.remoteCursor && p.inRemoteSection)
+			lines = append(lines, line)
+		}
 	}
 
 	if p.showWorktrees && len(p.worktrees) > 0 {
@@ -264,6 +329,21 @@ func (p *BranchesPanel) renderBranch(b git.Branch, selected bool) string {
 	return p.styles.ListItem.Render(line)
 }
 
+func (p *BranchesPanel) renderRemoteBranch(b git.Branch, selected bool) string {
+	prefix := "  "
+	if selected && p.focused {
+		prefix = "> "
+	}
+
+	line := prefix + "  origin/" + b.Name
+
+	if selected && p.focused {
+		return p.styles.ListItemSelected.Render(line)
+	}
+
+	return p.styles.Dim.Render(line)
+}
+
 func (p *BranchesPanel) renderWorktree(w git.Worktree, selected bool) string {
 	prefix := "  "
 	if selected && p.focused {
@@ -320,10 +400,26 @@ func (p *BranchesPanel) moveDown() {
 			p.inTagSection = true
 			p.tagCursor = 0
 		}
+	} else if p.inRemoteSection {
+		// In remote section
+		if p.remoteCursor < len(p.filteredRemoteBranches)-1 {
+			p.remoteCursor++
+		} else if p.showWorktrees && len(p.worktrees) > 0 {
+			p.inRemoteSection = false
+			p.inWorktreeSection = true
+			p.worktreeCursor = 0
+		} else if p.showTags && len(p.tags) > 0 {
+			p.inRemoteSection = false
+			p.inTagSection = true
+			p.tagCursor = 0
+		}
 	} else {
-		// In branches section
+		// In local branches section
 		if p.cursor < len(p.filteredBranches)-1 {
 			p.cursor++
+		} else if p.showRemotes && len(p.filteredRemoteBranches) > 0 {
+			p.inRemoteSection = true
+			p.remoteCursor = 0
 		} else if p.showWorktrees && len(p.worktrees) > 0 {
 			p.inWorktreeSection = true
 			p.worktreeCursor = 0
@@ -343,6 +439,10 @@ func (p *BranchesPanel) moveUp() {
 			p.inTagSection = false
 			p.inWorktreeSection = true
 			p.worktreeCursor = len(p.worktrees) - 1
+		} else if p.showRemotes && len(p.filteredRemoteBranches) > 0 {
+			p.inTagSection = false
+			p.inRemoteSection = true
+			p.remoteCursor = len(p.filteredRemoteBranches) - 1
 		} else {
 			p.inTagSection = false
 			if len(p.filteredBranches) > 0 {
@@ -353,14 +453,28 @@ func (p *BranchesPanel) moveUp() {
 		// In worktrees section
 		if p.worktreeCursor > 0 {
 			p.worktreeCursor--
+		} else if p.showRemotes && len(p.filteredRemoteBranches) > 0 {
+			p.inWorktreeSection = false
+			p.inRemoteSection = true
+			p.remoteCursor = len(p.filteredRemoteBranches) - 1
 		} else {
 			p.inWorktreeSection = false
 			if len(p.filteredBranches) > 0 {
 				p.cursor = len(p.filteredBranches) - 1
 			}
 		}
+	} else if p.inRemoteSection {
+		// In remote section
+		if p.remoteCursor > 0 {
+			p.remoteCursor--
+		} else {
+			p.inRemoteSection = false
+			if len(p.filteredBranches) > 0 {
+				p.cursor = len(p.filteredBranches) - 1
+			}
+		}
 	} else {
-		// In branches section
+		// In local branches section
 		if p.cursor > 0 {
 			p.cursor--
 		}
@@ -368,20 +482,41 @@ func (p *BranchesPanel) moveUp() {
 }
 
 func (p *BranchesPanel) getCursorLineIndex() int {
+	idx := 1 + len(p.filteredBranches) // header + local branches
+
+	if p.inRemoteSection {
+		return idx + 2 + p.remoteCursor // +2 for blank line + remote header
+	}
+
+	if p.showRemotes && len(p.filteredRemoteBranches) > 0 {
+		idx += 2 + len(p.filteredRemoteBranches) // blank line + header + remote branches
+	}
+
+	if p.inWorktreeSection {
+		return idx + 2 + p.worktreeCursor
+	}
+
+	if p.showWorktrees && len(p.worktrees) > 0 {
+		idx += 2 + len(p.worktrees)
+	}
+
 	if p.inTagSection {
-		idx := 1 + len(p.filteredBranches)
-		if p.showWorktrees && len(p.worktrees) > 0 {
-			idx += 2 + len(p.worktrees)
-		}
 		return idx + 2 + p.tagCursor
 	}
-	if p.inWorktreeSection {
-		return 1 + len(p.filteredBranches) + 2 + p.worktreeCursor
-	}
+
 	return 1 + p.cursor
 }
 
 func (p *BranchesPanel) SelectedBranch() *git.Branch {
+	if p.inRemoteSection {
+		if len(p.filteredRemoteBranches) == 0 {
+			return nil
+		}
+		if p.remoteCursor < len(p.filteredRemoteBranches) {
+			return &p.filteredRemoteBranches[p.remoteCursor]
+		}
+		return nil
+	}
 	if p.inWorktreeSection || p.inTagSection || len(p.filteredBranches) == 0 {
 		return nil
 	}
@@ -389,6 +524,11 @@ func (p *BranchesPanel) SelectedBranch() *git.Branch {
 		return &p.filteredBranches[p.cursor]
 	}
 	return nil
+}
+
+// InRemoteSection returns true if the cursor is in the remote branches section
+func (p *BranchesPanel) InRemoteSection() bool {
+	return p.inRemoteSection
 }
 
 func (p *BranchesPanel) SelectedWorktree() *git.Worktree {

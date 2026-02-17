@@ -3,6 +3,7 @@ package git
 import (
 	"os"
 	"path/filepath"
+	"sort"
 	"strings"
 
 	gogit "github.com/go-git/go-git/v5"
@@ -104,14 +105,9 @@ func (r *Repository) findHotFiles(commitLimit int) ([]HotFile, error) {
 		changes = append(changes, fileChange{path, count})
 	}
 
-	// Simple sort (bubble sort for small lists)
-	for i := 0; i < len(changes)-1; i++ {
-		for j := i + 1; j < len(changes); j++ {
-			if changes[j].count > changes[i].count {
-				changes[i], changes[j] = changes[j], changes[i]
-			}
-		}
-	}
+	sort.Slice(changes, func(i, j int) bool {
+		return changes[j].count < changes[i].count
+	})
 
 	// Take top 10
 	limit := 10
@@ -184,13 +180,9 @@ func (r *Repository) detectLanguages() ([]LanguageStats, error) {
 	}
 
 	// Sort by file count
-	for i := 0; i < len(languages)-1; i++ {
-		for j := i + 1; j < len(languages); j++ {
-			if languages[j].FileCount > languages[i].FileCount {
-				languages[i], languages[j] = languages[j], languages[i]
-			}
-		}
-	}
+	sort.Slice(languages, func(i, j int) bool {
+		return languages[j].FileCount < languages[i].FileCount
+	})
 
 	// Limit to top 10
 	if len(languages) > 10 {
@@ -200,46 +192,48 @@ func (r *Repository) detectLanguages() ([]LanguageStats, error) {
 	return languages, nil
 }
 
+// extToLang maps file extensions to language names (initialized once at package level)
+var extToLang = map[string]string{
+	".go":     "Go",
+	".py":     "Python",
+	".js":     "JavaScript",
+	".ts":     "TypeScript",
+	".jsx":    "JavaScript",
+	".tsx":    "TypeScript",
+	".java":   "Java",
+	".kt":     "Kotlin",
+	".rb":     "Ruby",
+	".rs":     "Rust",
+	".c":      "C",
+	".cpp":    "C++",
+	".cc":     "C++",
+	".h":      "C/C++ Header",
+	".hpp":    "C++ Header",
+	".cs":     "C#",
+	".swift":  "Swift",
+	".php":    "PHP",
+	".scala":  "Scala",
+	".sh":     "Shell",
+	".bash":   "Shell",
+	".zsh":    "Shell",
+	".sql":    "SQL",
+	".html":   "HTML",
+	".css":    "CSS",
+	".scss":   "SCSS",
+	".sass":   "SASS",
+	".less":   "LESS",
+	".json":   "JSON",
+	".yaml":   "YAML",
+	".yml":    "YAML",
+	".xml":    "XML",
+	".md":     "Markdown",
+	".vue":    "Vue",
+	".svelte": "Svelte",
+}
+
 // extensionToLanguage maps file extensions to language names
 func extensionToLanguage(ext string) string {
-	langMap := map[string]string{
-		".go":    "Go",
-		".py":    "Python",
-		".js":    "JavaScript",
-		".ts":    "TypeScript",
-		".jsx":   "JavaScript",
-		".tsx":   "TypeScript",
-		".java":  "Java",
-		".kt":    "Kotlin",
-		".rb":    "Ruby",
-		".rs":    "Rust",
-		".c":     "C",
-		".cpp":   "C++",
-		".cc":    "C++",
-		".h":     "C/C++ Header",
-		".hpp":   "C++ Header",
-		".cs":    "C#",
-		".swift": "Swift",
-		".php":   "PHP",
-		".scala": "Scala",
-		".sh":    "Shell",
-		".bash":  "Shell",
-		".zsh":   "Shell",
-		".sql":   "SQL",
-		".html":  "HTML",
-		".css":   "CSS",
-		".scss":  "SCSS",
-		".sass":  "SASS",
-		".less":  "LESS",
-		".json":  "JSON",
-		".yaml":  "YAML",
-		".yml":   "YAML",
-		".xml":   "XML",
-		".md":    "Markdown",
-		".vue":   "Vue",
-		".svelte": "Svelte",
-	}
-	return langMap[ext]
+	return extToLang[ext]
 }
 
 // detectProjectType detects the type of project

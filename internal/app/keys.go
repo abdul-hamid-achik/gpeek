@@ -44,6 +44,7 @@ type KeyMap struct {
 	Stash          key.Binding
 	Blame          key.Binding
 	CommandPalette key.Binding
+	ZoomToggle     key.Binding
 }
 
 func DefaultKeyMap() KeyMap {
@@ -204,6 +205,10 @@ func DefaultKeyMap() KeyMap {
 			key.WithKeys("ctrl+k"),
 			key.WithHelp("ctrl+k", "command palette"),
 		),
+		ZoomToggle: key.NewBinding(
+			key.WithKeys("z"),
+			key.WithHelp("z", "zoom panel"),
+		),
 	}
 }
 
@@ -221,6 +226,6 @@ func (k KeyMap) FullHelp() [][]key.Binding {
 		{k.DiffMode, k.ShowCommit, k.Worktree, k.Stash, k.Blame},
 		{k.FilterPanel, k.GlobalSearch, k.SearchNext, k.SearchPrev},
 		{k.GitConfig, k.Refresh, k.Help, k.Quit},
-		{k.CommandPalette},
+		{k.CommandPalette, k.ZoomToggle},
 	}
 }

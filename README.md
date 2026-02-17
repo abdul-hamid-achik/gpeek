@@ -5,19 +5,21 @@ Git visualization for humans and agents. A dual-mode tool providing both an inte
 ## Features
 
 ### For Humans (TUI Mode)
-- **Four-panel layout** - Files, Branches, Commits, and Preview panels
-- **Syntax-highlighted diffs** - View changes with full syntax highlighting
+- **Four-panel layout** - Files, Branches, Commits, and Preview panels with panel zoom (`z`)
+- **Commit graph** - ASCII-art branch/merge visualization in the Commits panel
+- **Syntax-highlighted diffs** - Unified and side-by-side views (`S` to toggle)
 - **Git operations** - Stage, unstage, commit, push, pull, fetch, and checkout
-- **Branch management** - Create, delete, and switch branches
+- **Branch management** - Local and remote branches with create, delete, and switch
 - **Worktree support** - Manage multiple working directories
-- **Command palette** - Quick access to all commands via `Ctrl+K`
+- **Command palette** - Quick access to all commands via `Ctrl+K` (always visible in status bar)
 - **Vim-style keybindings** - Navigate with familiar keys (j/k, g/G, Ctrl+u/d)
+- **Scroll position** - Panel titles show cursor position (e.g., "Commits (5/128)")
 - **Theme support** - Built-in themes: Nord, Dracula, Catppuccin Mocha, Gruvbox Dark
 
 ### For Agents (CLI + MCP Mode)
 - **Structured JSON output** - All commands support `-f json` for machine-readable output
 - **MCP server** - Model Context Protocol integration for Claude and other LLMs
-- **16 MCP tools** - Comprehensive git operations, search, and analysis
+- **23 MCP tools** - Comprehensive git operations, search, write operations, and analysis
 - **One-call context** - `gpeek summary` provides complete repo state in a single request
 - **Semantic search** - Find commits by intent, not just keywords
 - **Smart analysis** - Conflict prediction, change summarization, risk assessment
@@ -149,7 +151,7 @@ Add to your Claude Code MCP settings (`~/.claude/claude_desktop_config.json`):
 
 #### Available MCP Tools
 
-gpeek provides 16 MCP tools organized by category:
+gpeek provides 23 MCP tools organized by category:
 
 **Core Tools**
 | Tool | Description |
@@ -176,6 +178,17 @@ gpeek provides 16 MCP tools organized by category:
 |------|-------------|
 | `gpeek_search_changes` | Search commits by message, author, or content |
 | `gpeek_change_impact` | Analyze impact of staged/unstaged changes |
+
+**Write Tools**
+| Tool | Description |
+|------|-------------|
+| `gpeek_stage` | Stage files for commit |
+| `gpeek_unstage` | Unstage files |
+| `gpeek_commit` | Create a commit with a message |
+| `gpeek_stash_save` | Save changes to stash |
+| `gpeek_stash_pop` | Pop a stash entry |
+| `gpeek_stash_drop` | Drop a stash entry |
+| `gpeek_discard` | Discard uncommitted changes (requires confirmation) |
 
 **Memory Tools** (requires [noted](https://github.com/your-org/noted))
 | Tool | Description |
@@ -353,6 +366,7 @@ gpeek /path/to/repo  # Specific repository
 | `2` | Focus Branches panel |
 | `3` | Focus Commits panel |
 | `4` | Focus Preview panel |
+| `z` | Toggle panel zoom (maximize/restore focused panel) |
 
 ### Git Operations
 
@@ -369,6 +383,18 @@ gpeek /path/to/repo  # Specific repository
 | `Enter` | View commit diff (in Commits panel) |
 | `n` | Create new branch |
 | `d` | Delete branch |
+
+### Branches Panel
+
+| Key | Action |
+|-----|--------|
+| `R` | Toggle remote branches visibility |
+
+### Diff Modal
+
+| Key | Action |
+|-----|--------|
+| `S` | Toggle side-by-side / unified diff view |
 
 ### Views & Modals
 
@@ -455,11 +481,15 @@ primary: "#7aa2f7"
 secondary: "#bb9af7"
 accent: "#f7768e"
 muted: "#565f89"
+subtle: "#3b4261"
 border: "#3b4261"
 selection: "#33467c"
 added: "#9ece6a"
 removed: "#f7768e"
 modified: "#e0af68"
+warning: "#e0af68"
+error: "#f7768e"
+info: "#7aa2f7"
 syntax:
   keyword: "#bb9af7"
   string: "#9ece6a"
@@ -468,6 +498,8 @@ syntax:
   function: "#7aa2f7"
   type: "#2ac3de"
 ```
+
+> **Note:** The `subtle` field is required for line numbers and dim UI elements. Omitting it will result in invisible text. The `muted` field should have sufficient contrast against `background` (aim for WCAG AA 4.5:1 ratio).
 
 ## Architecture
 

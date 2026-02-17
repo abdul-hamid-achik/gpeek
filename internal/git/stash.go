@@ -10,6 +10,9 @@ import (
 	"time"
 )
 
+// stashPattern matches stash@{n} references (compiled once at package level)
+var stashPattern = regexp.MustCompile(`stash@\{(\d+)\}`)
+
 type Stash struct {
 	Index   int       `json:"index"`
 	Message string    `json:"message"`
@@ -46,9 +49,6 @@ func (r *Repository) StashList() ([]Stash, error) {
 
 	var stashes []Stash
 	scanner := bufio.NewScanner(strings.NewReader(string(output)))
-
-	// Pattern to match stash@{n}
-	stashPattern := regexp.MustCompile(`stash@\{(\d+)\}`)
 
 	for scanner.Scan() {
 		line := scanner.Text()

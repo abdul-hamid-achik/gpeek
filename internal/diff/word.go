@@ -163,13 +163,6 @@ func longestCommonSubsequence(a, b []string) []string {
 	return lcs
 }
 
-func max(a, b int) int {
-	if a > b {
-		return a
-	}
-	return b
-}
-
 func (wd WordDiff) RenderOld(changedStyle, normalStyle func(string) string) string {
 	var result strings.Builder
 	for _, w := range wd.OldWords {

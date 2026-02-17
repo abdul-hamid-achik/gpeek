@@ -24,6 +24,10 @@ type DiffModal struct {
 	allExpanded bool         // Toggle all state
 	focusedFile int          // Currently focused file index
 
+	// Side-by-side toggle
+	sideBySide bool
+	renderer   *diff.Renderer
+
 	// File position tracking for navigation
 	filePositions []diff.FilePosition
 
@@ -52,6 +56,8 @@ func NewDiffModal(styles *ui.Styles, title, diffContent string, width, height in
 		expanded:      expanded,
 		allExpanded:   false,
 		focusedFile:   0,
+		sideBySide:    false,
+		renderer:      diff.NewRenderer(styles),
 		filePositions: make([]diff.FilePosition, len(parsedDiff.Files)),
 		diffSearch:    uisearch.NewDiffSearch(styles),
 	}
@@ -105,6 +111,15 @@ func (m *DiffModal) highlightFn(content string, matches []diff.LineMatch, baseSt
 func (m *DiffModal) renderContent() {
 	if m.parsedDiff == nil || len(m.parsedDiff.Files) == 0 {
 		m.viewport.SetContent("No changes in this commit")
+		return
+	}
+
+	if m.sideBySide {
+		// Side-by-side rendering uses the Renderer from diff package
+		contentStr := m.renderer.RenderSideBySide(m.rawDiff, m.viewport.Width)
+		m.filePositions = make([]diff.FilePosition, len(m.parsedDiff.Files))
+		m.viewport.SetContent(contentStr)
+		m.diffSearch.SetContent(contentStr)
 		return
 	}
 
@@ -189,6 +204,11 @@ func (m *DiffModal) Update(msg tea.Msg) (Modal, tea.Cmd) {
 				}
 				return m, nil
 			}
+		case "S":
+			// Toggle side-by-side diff view
+			m.sideBySide = !m.sideBySide
+			m.renderContent()
+			return m, nil
 		case "enter", " ":
 			// Toggle focused file expansion
 			if hasFiles && m.focusedFile < len(m.parsedDiff.Files) {
@@ -340,7 +360,11 @@ func (m *DiffModal) View() string {
 		Foreground(lipgloss.Color(m.styles.Theme.Secondary)).
 		Background(lipgloss.Color(m.styles.Theme.Background))
 
-	header := headerStyle.Render(fmt.Sprintf("%d files (%d expanded)", fileCount, expandedCount))
+	modeStr := "unified"
+	if m.sideBySide {
+		modeStr = "side-by-side"
+	}
+	header := headerStyle.Render(fmt.Sprintf("%d files (%d expanded) [%s]", fileCount, expandedCount, modeStr))
 
 	content := m.viewport.View()
 
@@ -358,7 +382,7 @@ func (m *DiffModal) View() string {
 	scrollbar := filledStyle.Render(strings.Repeat("█", scrollPercent/10)) +
 		trackStyle.Render(strings.Repeat("░", 10-scrollPercent/10))
 
-	footer := footerStyle.Render("j/k nav • J/K file • {/} jump • enter toggle • a all • / search • q close  ") + scrollbar
+	footer := footerStyle.Render("j/k nav • J/K file • {/} jump • enter toggle • a all • S split • / search • q close  ") + scrollbar
 
 	// Add search bar if active
 	var searchBar string

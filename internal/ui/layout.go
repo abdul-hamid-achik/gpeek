@@ -30,6 +30,9 @@ type Layout struct {
 	PreviewHeight int
 
 	StatusHeight int
+
+	Zoomed      bool
+	ZoomedPanel FocusedPanel
 }
 
 func NewLayout(width, height int) *Layout {
@@ -50,10 +53,44 @@ func (l *Layout) Calculate() {
 		l.Height = MinHeight
 	}
 
+	availableHeight := l.Height - l.StatusHeight
+
+	if l.Zoomed {
+		// Zoomed panel gets full dimensions, all others get 0
+		l.FilesWidth = 0
+		l.FilesHeight = 0
+		l.BranchWidth = 0
+		l.BranchHeight = 0
+		l.CommitsWidth = 0
+		l.CommitsHeight = 0
+		l.PreviewWidth = 0
+		l.PreviewHeight = 0
+
+		switch l.ZoomedPanel {
+		case PanelFiles:
+			l.FilesWidth = l.Width
+			l.FilesHeight = availableHeight
+		case PanelBranches:
+			l.BranchWidth = l.Width
+			l.BranchHeight = availableHeight
+		case PanelCommits:
+			l.CommitsWidth = l.Width
+			l.CommitsHeight = availableHeight
+		case PanelPreview:
+			l.PreviewWidth = l.Width
+			l.PreviewHeight = availableHeight
+		}
+
+		l.LeftWidth = l.Width
+		l.RightWidth = l.Width
+		l.TopHeight = availableHeight
+		l.BottomHeight = availableHeight
+		return
+	}
+
 	l.LeftWidth = l.Width / 4
 	l.RightWidth = l.Width - l.LeftWidth
 
-	availableHeight := l.Height - l.StatusHeight
 	l.TopHeight = availableHeight / 2
 	l.BottomHeight = availableHeight - l.TopHeight
 
@@ -208,9 +245,3 @@ func RenderBorder(content, title string, width, height int, focused bool, styles
 	return bordered
 }
 
-func max(a, b int) int {
-	if a > b {
-		return a
-	}
-	return b
-}

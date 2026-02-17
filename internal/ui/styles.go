@@ -186,6 +186,7 @@ func NewStyles(theme Theme) *Styles {
 
 	s.SearchMatch = lipgloss.NewStyle().
 		Bold(true).
+		Foreground(lipgloss.Color(theme.Background)).
 		Background(lipgloss.Color(theme.Warning))
 
 	// Modal styles

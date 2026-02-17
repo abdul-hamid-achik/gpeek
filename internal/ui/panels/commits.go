@@ -22,6 +22,10 @@ type CommitsPanel struct {
 	cursor          int
 	offset          int
 
+	// Commit graph (precomputed)
+	graphLines         []string // graph lines for allCommits
+	filteredGraphLines []string // graph lines aligned with filteredCommits
+
 	// Filter support
 	filterBar *uisearch.FilterBar
 }
@@ -35,6 +39,8 @@ func NewCommitsPanel(styles *ui.Styles) *CommitsPanel {
 
 func (p *CommitsPanel) SetCommits(commits []git.Commit) {
 	p.allCommits = commits
+	// Precompute graph lines once when commits are set
+	p.graphLines = git.RenderCommitGraph(commits, p.width)
 	p.applyFilter()
 }
 
@@ -43,11 +49,25 @@ func (p *CommitsPanel) applyFilter() {
 
 	if query.Text == "" {
 		p.filteredCommits = p.allCommits
+		p.filteredGraphLines = p.graphLines
 	} else {
 		// Filter by message or author
-		p.filteredCommits = search.Filter(p.allCommits, query, func(c git.Commit) string {
-			return c.Message + " " + c.Author
-		})
+		p.filteredCommits = nil
+		p.filteredGraphLines = nil
+		for i, c := range p.allCommits {
+			text := c.Message + " " + c.Author
+			filtered := search.Filter([]git.Commit{c}, query, func(c git.Commit) string {
+				return text
+			})
+			if len(filtered) > 0 {
+				p.filteredCommits = append(p.filteredCommits, c)
+				if i < len(p.graphLines) {
+					p.filteredGraphLines = append(p.filteredGraphLines, p.graphLines[i])
+				} else {
+					p.filteredGraphLines = append(p.filteredGraphLines, "")
+				}
+			}
+		}
 	}
 
 	// Update filter bar counts
@@ -64,8 +84,14 @@ func (p *CommitsPanel) applyFilter() {
 }
 
 func (p *CommitsPanel) SetSize(width, height int) {
+	oldWidth := p.width
 	p.BasePanel.SetSize(width, height)
 	p.filterBar.SetWidth(width)
+	// Recompute graph if width changed
+	if width != oldWidth && len(p.allCommits) > 0 {
+		p.graphLines = git.RenderCommitGraph(p.allCommits, width)
+		p.applyFilter()
+	}
 }
 
 func (p *CommitsPanel) Update(msg tea.Msg) tea.Cmd {
@@ -151,7 +177,7 @@ func (p *CommitsPanel) View() string {
 
 	for i := p.offset; i < end; i++ {
 		c := commits[i]
-		line := p.renderCommit(c, i == p.cursor)
+		line := p.renderCommit(c, i, i == p.cursor)
 		lines = append(lines, line)
 	}
 
@@ -165,14 +191,14 @@ func (p *CommitsPanel) View() string {
 	return content
 }
 
-func (p *CommitsPanel) renderCommit(c git.Commit, selected bool) string {
+func (p *CommitsPanel) renderCommit(c git.Commit, idx int, selected bool) string {
 	hash := c.Hash
 	if len(hash) > 7 {
 		hash = hash[:7]
 	}
 	msg := c.Message
 	timeStr := p.formatTime(c.Time)
-	graph := p.renderGraph(c)
+	graph := p.renderGraph(idx, c)
 
 	selPrefix := "  "
 	if selected && p.focused {
@@ -216,7 +242,32 @@ func (p *CommitsPanel) renderCommit(c git.Commit, selected bool) string {
 	return line
 }
 
-func (p *CommitsPanel) renderGraph(c git.Commit) string {
+func (p *CommitsPanel) renderGraph(idx int, c git.Commit) string {
+	// Use precomputed graph lines when available
+	if idx < len(p.filteredGraphLines) {
+		graphStr := p.filteredGraphLines[idx]
+		if graphStr != "" {
+			// Style the graph characters: commit nodes get special styling
+			var styled strings.Builder
+			for _, r := range graphStr {
+				switch r {
+				case '●':
+					styled.WriteString(p.styles.GraphMerge.Render(string(r)))
+				case '○':
+					styled.WriteString(p.styles.GraphCommit.Render(string(r)))
+				case '│', '┼':
+					styled.WriteString(p.styles.GraphBranch.Render(string(r)))
+				case '─', '╮', '╭':
+					styled.WriteString(p.styles.GraphMerge.Render(string(r)))
+				default:
+					styled.WriteRune(r)
+				}
+			}
+			return styled.String()
+		}
+	}
+
+	// Fallback: simple dot
 	if c.IsMerge {
 		return p.styles.GraphMerge.Render("●")
 	}

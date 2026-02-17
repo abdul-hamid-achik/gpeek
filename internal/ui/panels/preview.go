@@ -69,7 +69,13 @@ func (p *PreviewPanel) SetDiff(diffContent string) {
 	for i := range p.parsedDiff.Files {
 		p.expanded[i] = false
 	}
-	p.allExpanded = false
+	// Auto-expand if there's exactly one file
+	if len(p.parsedDiff.Files) == 1 {
+		p.expanded[0] = true
+		p.allExpanded = true
+	} else {
+		p.allExpanded = false
+	}
 	p.focusedFile = 0
 
 	p.renderContent()

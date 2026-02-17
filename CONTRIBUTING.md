@@ -6,7 +6,7 @@ Thank you for your interest in contributing to gpeek!
 
 ### Prerequisites
 
-- Go 1.21 or later
+- Go 1.21 or later (project uses Go 1.25)
 - Git
 - A terminal with true color support (for testing themes)
 
@@ -55,16 +55,24 @@ golangci-lint run
 gpeek/
 ├── cmd/gpeek/          # Application entry point
 ├── internal/
+│   ├── agent/          # AI analyzer (conflict check, change impact, summarization)
 │   ├── app/            # Main application logic and keybindings
+│   ├── cli/            # Cobra CLI commands
 │   ├── config/         # Configuration handling
-│   ├── diff/           # Diff parsing and rendering
+│   ├── diff/           # Diff parsing, rendering (unified + side-by-side)
 │   ├── gh/             # GitHub integration
-│   ├── git/            # Git repository operations
-│   └── ui/             # User interface components
-│       ├── modals/     # Modal dialogs
-│       └── panels/     # Main panels (files, branches, commits, preview)
+│   ├── git/            # Git repository operations, commit graph, repo pool
+│   ├── mcp/            # MCP server
+│   │   └── tools/      # 23 MCP tool handlers
+│   ├── memory/         # Noted memory integration
+│   ├── search/         # Core search engine (fuzzy, exact, regex)
+│   ├── ui/             # Layout, themes, styles
+│   │   ├── modals/     # Modal dialogs (diff, blame, stash, help, etc.)
+│   │   ├── panels/     # Main panels (files, branches, commits, preview)
+│   │   └── search/     # Search UI components (filter bar, diff search)
+│   └── version/        # Version info
 ├── configs/            # Default configuration files
-└── themes/             # Built-in theme definitions
+└── themes/             # Built-in theme definitions (YAML)
 ```
 
 ## Making Changes

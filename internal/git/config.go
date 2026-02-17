@@ -9,6 +9,9 @@ import (
 	gogitconfig "github.com/go-git/go-git/v5/config"
 )
 
+// emailRegex validates email format (compiled once at package level)
+var emailRegex = regexp.MustCompile(`^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$`)
+
 // ConfigEntry represents a single git config entry
 type ConfigEntry struct {
 	Key      string
@@ -253,7 +256,6 @@ func validateConfigValue(key, value string) error {
 			return errors.New("user.email cannot be empty")
 		}
 		// Simple email validation
-		emailRegex := regexp.MustCompile(`^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$`)
 		if !emailRegex.MatchString(value) {
 			return fmt.Errorf("invalid email format: %s", value)
 		}

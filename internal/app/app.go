@@ -36,6 +36,8 @@ type Model struct {
 	searchModal  *uisearch.SearchModal
 	paletteModal *modals.PaletteModal
 
+	zoomed bool
+
 	statusMessage   string
 	statusError     bool
 	statusTime      time.Time
@@ -126,16 +128,7 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.height = msg.Height
 		m.layout.SetSize(msg.Width, msg.Height)
 		m.ready = true
-
-		filesDim := m.layout.FilesDimensions()
-		branchesDim := m.layout.BranchesDimensions()
-		commitsDim := m.layout.CommitsDimensions()
-		previewDim := m.layout.PreviewDimensions()
-
-		m.filesPanel.SetSize(filesDim.InnerWidth, filesDim.InnerHeight)
-		m.branchesPanel.SetSize(branchesDim.InnerWidth, branchesDim.InnerHeight)
-		m.commitsPanel.SetSize(commitsDim.InnerWidth, commitsDim.InnerHeight)
-		m.previewPanel.SetSize(previewDim.InnerWidth, previewDim.InnerHeight)
+		m.resizePanels()
 
 	case tea.KeyMsg:
 		// Handle search modal first (it's separate from activeModal)
@@ -497,6 +490,14 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			)
 			return m, nil
 
+		case key.Matches(msg, m.keys.ZoomToggle):
+			m.zoomed = !m.zoomed
+			m.layout.Zoomed = m.zoomed
+			m.layout.ZoomedPanel = m.focused
+			m.layout.Calculate()
+			m.resizePanels()
+			return m, nil
+
 		default:
 			cmd := m.updateFocusedPanel(msg)
 			if cmd != nil {
@@ -596,45 +597,64 @@ func (m *Model) View() string {
 	commitsDim := m.layout.CommitsDimensions()
 	previewDim := m.layout.PreviewDimensions()
 
-	filesView := ui.RenderBorder(
-		m.filesPanel.View(),
-		"Files",
-		filesDim.Width,
-		filesDim.Height,
-		m.focused == ui.PanelFiles,
-		m.styles,
-	)
+	filesTitle := m.panelTitle("Files", m.filesPanel.CursorPosition(), m.filesPanel.TotalItems())
+	branchesTitle := m.panelTitle("Branches", m.branchesPanel.CursorPosition(), m.branchesPanel.TotalItems())
+	commitsTitle := m.panelTitle("Commits", m.commitsPanel.CursorPosition(), m.commitsPanel.TotalItems())
+	previewTitle := "Preview"
 
-	branchesView := ui.RenderBorder(
-		m.branchesPanel.View(),
-		"Branches",
-		branchesDim.Width,
-		branchesDim.Height,
-		m.focused == ui.PanelBranches,
-		m.styles,
-	)
+	var mainView string
+	if m.zoomed {
+		switch m.layout.ZoomedPanel {
+		case ui.PanelFiles:
+			mainView = ui.RenderBorder(m.filesPanel.View(), filesTitle, filesDim.Width, filesDim.Height, true, m.styles)
+		case ui.PanelBranches:
+			mainView = ui.RenderBorder(m.branchesPanel.View(), branchesTitle, branchesDim.Width, branchesDim.Height, true, m.styles)
+		case ui.PanelCommits:
+			mainView = ui.RenderBorder(m.commitsPanel.View(), commitsTitle, commitsDim.Width, commitsDim.Height, true, m.styles)
+		case ui.PanelPreview:
+			mainView = ui.RenderBorder(m.previewPanel.View(), previewTitle, previewDim.Width, previewDim.Height, true, m.styles)
+		}
+	} else {
+		filesView := ui.RenderBorder(
+			m.filesPanel.View(),
+			filesTitle,
+			filesDim.Width,
+			filesDim.Height,
+			m.focused == ui.PanelFiles,
+			m.styles,
+		)
 
-	commitsView := ui.RenderBorder(
-		m.commitsPanel.View(),
-		"Commits",
-		commitsDim.Width,
-		commitsDim.Height,
-		m.focused == ui.PanelCommits,
-		m.styles,
-	)
+		branchesView := ui.RenderBorder(
+			m.branchesPanel.View(),
+			branchesTitle,
+			branchesDim.Width,
+			branchesDim.Height,
+			m.focused == ui.PanelBranches,
+			m.styles,
+		)
 
-	previewView := ui.RenderBorder(
-		m.previewPanel.View(),
-		"Preview",
-		previewDim.Width,
-		previewDim.Height,
-		m.focused == ui.PanelPreview,
-		m.styles,
-	)
+		commitsView := ui.RenderBorder(
+			m.commitsPanel.View(),
+			commitsTitle,
+			commitsDim.Width,
+			commitsDim.Height,
+			m.focused == ui.PanelCommits,
+			m.styles,
+		)
 
-	leftColumn := lipgloss.JoinVertical(lipgloss.Left, filesView, branchesView)
-	rightColumn := lipgloss.JoinVertical(lipgloss.Left, commitsView, previewView)
-	mainView := lipgloss.JoinHorizontal(lipgloss.Top, leftColumn, rightColumn)
+		previewView := ui.RenderBorder(
+			m.previewPanel.View(),
+			previewTitle,
+			previewDim.Width,
+			previewDim.Height,
+			m.focused == ui.PanelPreview,
+			m.styles,
+		)
+
+		leftColumn := lipgloss.JoinVertical(lipgloss.Left, filesView, branchesView)
+		rightColumn := lipgloss.JoinVertical(lipgloss.Left, commitsView, previewView)
+		mainView = lipgloss.JoinHorizontal(lipgloss.Top, leftColumn, rightColumn)
+	}
 
 	statusBar := m.renderStatusBar()
 
@@ -696,27 +716,32 @@ func (m *Model) renderStatusBar() string {
 }
 
 func (m *Model) getPanelHints() string {
+	paletteHint := m.styles.HelpKey.Render("ctrl+k") + m.styles.HelpDesc.Render(" palette")
+
+	var panelHints string
 	switch m.focused {
 	case ui.PanelFiles:
-		return m.styles.HelpKey.Render("s") + m.styles.HelpDesc.Render(" stage  ") +
+		panelHints = m.styles.HelpKey.Render("s") + m.styles.HelpDesc.Render(" stage  ") +
 			m.styles.HelpKey.Render("u") + m.styles.HelpDesc.Render(" unstage  ") +
 			m.styles.HelpKey.Render("b") + m.styles.HelpDesc.Render(" blame  ") +
 			m.styles.HelpKey.Render("?") + m.styles.HelpDesc.Render(" help")
 	case ui.PanelBranches:
-		return m.styles.HelpKey.Render("enter") + m.styles.HelpDesc.Render(" checkout  ") +
+		panelHints = m.styles.HelpKey.Render("enter") + m.styles.HelpDesc.Render(" checkout  ") +
 			m.styles.HelpKey.Render("n") + m.styles.HelpDesc.Render(" new  ") +
 			m.styles.HelpKey.Render("t") + m.styles.HelpDesc.Render(" tags  ") +
 			m.styles.HelpKey.Render("?") + m.styles.HelpDesc.Render(" help")
 	case ui.PanelCommits:
-		return m.styles.HelpKey.Render("enter") + m.styles.HelpDesc.Render(" view diff  ") +
+		panelHints = m.styles.HelpKey.Render("enter") + m.styles.HelpDesc.Render(" view diff  ") +
 			m.styles.HelpKey.Render("?") + m.styles.HelpDesc.Render(" help")
 	case ui.PanelPreview:
-		return m.styles.HelpKey.Render("j/k") + m.styles.HelpDesc.Render(" scroll  ") +
+		panelHints = m.styles.HelpKey.Render("j/k") + m.styles.HelpDesc.Render(" scroll  ") +
 			m.styles.HelpKey.Render("?") + m.styles.HelpDesc.Render(" help")
 	default:
-		return m.styles.HelpKey.Render("?") + m.styles.HelpDesc.Render(" help  ") +
+		panelHints = m.styles.HelpKey.Render("?") + m.styles.HelpDesc.Render(" help  ") +
 			m.styles.HelpKey.Render("q") + m.styles.HelpDesc.Render(" quit")
 	}
+
+	return panelHints + "  " + paletteHint
 }
 
 func (m *Model) overlayModal(_, modal string) string {
@@ -859,6 +884,12 @@ func (m *Model) executeCommand(cmd modals.Command) tea.Cmd {
 			m.width-8,
 			m.height-8,
 		)
+	case "zoom":
+		m.zoomed = !m.zoomed
+		m.layout.Zoomed = m.zoomed
+		m.layout.ZoomedPanel = m.focused
+		m.layout.Calculate()
+		m.resizePanels()
 	default:
 		m.setStatus(fmt.Sprintf("Command '%s' executed", cmd.Title), false)
 	}
@@ -968,6 +999,25 @@ func (m *Model) refreshTags() tea.Cmd {
 		tags, err := m.repo.ListTags()
 		return gitTagsMsg{tags: tags, err: err}
 	}
+}
+
+func (m *Model) panelTitle(name string, cursor, total int) string {
+	if total == 0 {
+		return name
+	}
+	return fmt.Sprintf("%s (%d/%d)", name, cursor, total)
+}
+
+func (m *Model) resizePanels() {
+	filesDim := m.layout.FilesDimensions()
+	branchesDim := m.layout.BranchesDimensions()
+	commitsDim := m.layout.CommitsDimensions()
+	previewDim := m.layout.PreviewDimensions()
+
+	m.filesPanel.SetSize(filesDim.InnerWidth, filesDim.InnerHeight)
+	m.branchesPanel.SetSize(branchesDim.InnerWidth, branchesDim.InnerHeight)
+	m.commitsPanel.SetSize(commitsDim.InnerWidth, commitsDim.InnerHeight)
+	m.previewPanel.SetSize(previewDim.InnerWidth, previewDim.InnerHeight)
 }
 
 func (m *Model) setStatus(msg string, isError bool) {
