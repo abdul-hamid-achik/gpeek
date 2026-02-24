@@ -341,7 +341,20 @@ func (p *FilesPanel) renderFileEntry(f FileEntry, cursorOn bool) string {
 		selectMark = "[x]"
 	}
 
-	line := fmt.Sprintf("%s%s %s %s", prefix, selectMark, icon, f.Path)
+	// Truncate path so lines never wrap in narrow panels.
+	// Overhead: prefix(2) + selectMark(3) + space(1) + icon(1) + space(1) = 8
+	path := f.Path
+	if p.width > 0 {
+		maxPath := p.width - 8
+		if maxPath < 4 {
+			maxPath = 4
+		}
+		if runes := []rune(path); len(runes) > maxPath {
+			path = string(runes[:maxPath-3]) + "..."
+		}
+	}
+
+	line := fmt.Sprintf("%s%s %s %s", prefix, selectMark, icon, path)
 	if cursorOn && p.focused {
 		return p.styles.ListItemSelected.Render(line)
 	}

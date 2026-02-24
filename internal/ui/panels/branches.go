@@ -312,10 +312,29 @@ func (p *BranchesPanel) renderBranch(b git.Branch, selected bool) string {
 		currentMarker = "*"
 	}
 
-	line := prefix + currentMarker + " " + b.Name
+	// Truncate name to prevent wrapping.
+	// Local overhead:  prefix(2) + marker(1) + space(1)        = 4
+	// Remote overhead: prefix(2) + marker(1) + " origin/"(8)  = 11
+	name := b.Name
+	if p.width > 0 {
+		overhead := 4
+		if b.IsRemote {
+			overhead = 11
+		}
+		maxName := p.width - overhead
+		if maxName < 4 {
+			maxName = 4
+		}
+		if runes := []rune(name); len(runes) > maxName {
+			name = string(runes[:maxName-3]) + "..."
+		}
+	}
 
+	var line string
 	if b.IsRemote {
-		line = prefix + currentMarker + " origin/" + b.Name
+		line = prefix + currentMarker + " origin/" + name
+	} else {
+		line = prefix + currentMarker + " " + name
 	}
 
 	if selected && p.focused {
@@ -335,7 +354,19 @@ func (p *BranchesPanel) renderRemoteBranch(b git.Branch, selected bool) string {
 		prefix = "> "
 	}
 
-	line := prefix + "  origin/" + b.Name
+	// Truncate: prefix(2) + "  origin/"(9) = 11 chars overhead
+	name := b.Name
+	if p.width > 0 {
+		maxName := p.width - 11
+		if maxName < 4 {
+			maxName = 4
+		}
+		if runes := []rune(name); len(runes) > maxName {
+			name = string(runes[:maxName-3]) + "..."
+		}
+	}
+
+	line := prefix + "  origin/" + name
 
 	if selected && p.focused {
 		return p.styles.ListItemSelected.Render(line)
@@ -350,6 +381,13 @@ func (p *BranchesPanel) renderWorktree(w git.Worktree, selected bool) string {
 		prefix = "> "
 	}
 	line := fmt.Sprintf("%s  %s (%s)", prefix, w.Path, w.Branch)
+
+	// Truncate full line to panel width
+	if p.width > 0 {
+		if runes := []rune(line); len(runes) > p.width {
+			line = string(runes[:p.width-3]) + "..."
+		}
+	}
 
 	if selected && p.focused {
 		return p.styles.ListItemSelected.Render(line)
@@ -369,14 +407,30 @@ func (p *BranchesPanel) renderTag(t git.Tag, selected bool) string {
 		icon = "●"
 	}
 
-	line := fmt.Sprintf("%s %s %s", prefix, icon, t.Name)
+	hashSuffix := ""
 	if t.Hash != "" {
 		hash := t.Hash
 		if len(hash) > 7 {
 			hash = hash[:7]
 		}
-		line += fmt.Sprintf(" (%s)", hash)
+		hashSuffix = fmt.Sprintf(" (%s)", hash)
 	}
+
+	// Truncate tag name: prefix(2) + space(1) + icon(1) + space(1) = 5 overhead, plus hash suffix
+	tagName := t.Name
+	if p.width > 0 {
+		overhead := 5 + len(hashSuffix)
+		maxName := p.width - overhead
+		if maxName < 4 {
+			maxName = 4
+			hashSuffix = "" // drop suffix when space is very tight
+		}
+		if runes := []rune(tagName); len(runes) > maxName {
+			tagName = string(runes[:maxName-3]) + "..."
+		}
+	}
+
+	line := fmt.Sprintf("%s %s %s%s", prefix, icon, tagName, hashSuffix)
 
 	if selected && p.focused {
 		return p.styles.ListItemSelected.Render(line)
