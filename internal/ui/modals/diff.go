@@ -81,6 +81,7 @@ func (m *DiffModal) contentStyles() diff.ContentStyles {
 			Foreground(lipgloss.Color(m.styles.Theme.Background)).
 			Background(lipgloss.Color(m.styles.Theme.Primary)).
 			Bold(true),
+		ContentWidth: m.viewport.Width,
 	}
 }
 

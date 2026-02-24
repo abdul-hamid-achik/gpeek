@@ -13,12 +13,13 @@ import (
 
 type CommitModal struct {
 	BaseModal
-	styles   *ui.Styles
-	textarea textarea.Model
-	staged   []panels.FileEntry
-	onCommit func(string, bool) tea.Cmd
-	err      string
-	isAmend  bool
+	styles    *ui.Styles
+	textarea  textarea.Model
+	staged    []panels.FileEntry
+	onCommit  func(string, bool) tea.Cmd
+	err       string
+	isAmend   bool
+	termWidth int
 	lastCommitMsg  string
 	lastCommitHash string
 }
@@ -39,6 +40,18 @@ func NewCommitModal(styles *ui.Styles, staged []panels.FileEntry, lastCommitMsg,
 		lastCommitMsg:  lastCommitMsg,
 		lastCommitHash: lastCommitHash,
 	}
+}
+
+func (m *CommitModal) SetTerminalWidth(termWidth int) {
+	w := termWidth - 12
+	if w > 56 {
+		w = 56
+	}
+	if w < 30 {
+		w = 30
+	}
+	m.termWidth = w
+	m.textarea.SetWidth(w)
 }
 
 func (m *CommitModal) Update(msg tea.Msg) (Modal, tea.Cmd) {
@@ -105,26 +118,26 @@ func (m *CommitModal) View() string {
 			}
 			hashInfo = fmt.Sprintf(" (commit %s)", shortHash)
 		}
-		amendWarning = "\n" + m.styles.Warning.Render("⚠ AMEND"+hashInfo+": This will rewrite history")
+		amendWarning = m.styles.Warning.Render("⚠ AMEND" + hashInfo + ": This will rewrite history")
 	}
 
 	var errLine string
 	if m.err != "" {
-		errLine = "\n" + m.styles.Error.Render(m.err)
+		errLine = m.styles.Error.Render(m.err)
 	}
 
 	footer := m.styles.Dim.Render("Ctrl+S to commit • Ctrl+A to toggle amend • Esc to cancel")
 
-	body := lipgloss.JoinVertical(lipgloss.Left,
-		stagedSection,
-		amendWarning,
-		"",
-		messageLabel,
-		m.textarea.View(),
-		errLine,
-		"",
-		footer,
-	)
+	bodyParts := []string{stagedSection}
+	if amendWarning != "" {
+		bodyParts = append(bodyParts, amendWarning)
+	}
+	bodyParts = append(bodyParts, "", messageLabel, m.textarea.View())
+	if errLine != "" {
+		bodyParts = append(bodyParts, errLine)
+	}
+	bodyParts = append(bodyParts, "", footer)
+	body := lipgloss.JoinVertical(lipgloss.Left, bodyParts...)
 
 	modal := m.styles.Modal.Render(body)
 

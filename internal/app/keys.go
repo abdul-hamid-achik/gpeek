@@ -45,6 +45,11 @@ type KeyMap struct {
 	Blame          key.Binding
 	CommandPalette key.Binding
 	ZoomToggle     key.Binding
+	Merge       key.Binding
+	Rebase      key.Binding
+	CherryPick  key.Binding
+	Reset       key.Binding
+	Revert      key.Binding
 }
 
 func DefaultKeyMap() KeyMap {
@@ -209,6 +214,26 @@ func DefaultKeyMap() KeyMap {
 			key.WithKeys("z"),
 			key.WithHelp("z", "zoom panel"),
 		),
+		Merge: key.NewBinding(
+			key.WithKeys("m"),
+			key.WithHelp("m", "merge branch"),
+		),
+		Rebase: key.NewBinding(
+			key.WithKeys("r"),
+			key.WithHelp("r", "rebase"),
+		),
+		CherryPick: key.NewBinding(
+			key.WithKeys("e"),
+			key.WithHelp("e", "cherry-pick"),
+		),
+		Reset: key.NewBinding(
+			key.WithKeys("R"),
+			key.WithHelp("R", "reset (soft)"),
+		),
+		Revert: key.NewBinding(
+			key.WithKeys("y"),
+			key.WithHelp("y", "revert commit"),
+		),
 	}
 }
 
@@ -222,8 +247,8 @@ func (k KeyMap) FullHelp() [][]key.Binding {
 		{k.FocusNext, k.FocusPrev, k.FocusFiles, k.FocusBranches, k.FocusCommits, k.FocusPreview},
 		{k.Stage, k.Unstage, k.Discard, k.Commit},
 		{k.Push, k.Pull, k.Fetch},
-		{k.Checkout, k.NewBranch, k.DeleteBranch},
-		{k.DiffMode, k.ShowCommit, k.Worktree, k.Stash, k.Blame},
+		{k.Checkout, k.NewBranch, k.DeleteBranch, k.Merge, k.Rebase},
+		{k.DiffMode, k.ShowCommit, k.Worktree, k.Stash, k.Blame, k.CherryPick, k.Reset, k.Revert},
 		{k.FilterPanel, k.GlobalSearch, k.SearchNext, k.SearchPrev},
 		{k.GitConfig, k.Refresh, k.Help, k.Quit},
 		{k.CommandPalette, k.ZoomToggle},

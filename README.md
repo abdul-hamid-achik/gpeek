@@ -8,7 +8,7 @@ Git visualization for humans and agents. A dual-mode tool providing both an inte
 - **Four-panel layout** - Files, Branches, Commits, and Preview panels with panel zoom (`z`)
 - **Commit graph** - ASCII-art branch/merge visualization in the Commits panel
 - **Syntax-highlighted diffs** - Unified and side-by-side views (`S` to toggle)
-- **Git operations** - Stage, unstage, commit, push, pull, fetch, and checkout
+- **Git operations** - Stage, unstage, commit, push, pull, fetch, checkout, merge, rebase, cherry-pick, soft reset, and revert
 - **Branch management** - Local and remote branches with create, delete, and switch
 - **Worktree support** - Manage multiple working directories
 - **Command palette** - Quick access to all commands via `Ctrl+K` (always visible in status bar)
@@ -372,23 +372,39 @@ gpeek /path/to/repo  # Specific repository
 
 | Key | Action |
 |-----|--------|
-| `s` | Stage file |
-| `u` | Unstage file |
-| `x` | Discard changes |
+| `s` | Stage file (Files panel) |
+| `u` | Unstage file (Files panel) |
+| `x` | Discard changes (Files panel) |
 | `c` | Commit staged changes |
 | `P` | Push to remote |
 | `p` | Pull from remote |
 | `f` | Fetch from remote |
-| `Enter` | Checkout branch (in Branches panel) |
-| `Enter` | View commit diff (in Commits panel) |
-| `n` | Create new branch |
-| `d` | Delete branch |
+| `n` | Create new branch (Branches panel) |
+| `d` | Delete branch (Branches panel) |
 
 ### Branches Panel
 
 | Key | Action |
 |-----|--------|
+| `Enter` | Checkout selected branch |
+| `m` | Merge selected branch into current branch |
+| `r` | Rebase current branch onto selected branch |
+| `n` | Create new branch |
+| `d` | Delete selected branch |
 | `R` | Toggle remote branches visibility |
+
+> **Merge and rebase** always show a confirmation dialog before running. If conflicts occur, git's standard conflict markers are applied and the error is shown in the status bar.
+
+### Commits Panel
+
+| Key | Action |
+|-----|--------|
+| `Enter` | View commit diff |
+| `e` | Cherry-pick selected commit onto current branch |
+| `R` | Soft reset to selected commit (changes kept staged) |
+| `y` | Revert selected commit (creates a new undo commit) |
+
+> **Reset** uses `--soft` by default — your changes are preserved as staged. For a hard reset (discard all changes), use the command palette (`Ctrl+K` → "Reset (Hard)"). Hard reset shows an extra warning.
 
 ### Diff Modal
 
@@ -417,7 +433,17 @@ Press `Ctrl+K` to open the command palette for quick access to all commands:
 - Press `Enter` to execute
 - Press `Escape` to close
 
-Available commands include git operations, navigation, search, and system actions.
+| Category | Commands |
+|----------|----------|
+| Git | stage, unstage, discard, commit, push, pull, fetch |
+| Branch | checkout, new branch, delete branch, merge, rebase |
+| Commit | cherry pick, revert commit, reset (soft), reset (hard) |
+| Stash | stash management |
+| View | diff mode, blame, show commit, zoom |
+| Search | filter panel, global search |
+| System | refresh, git config, help, quit |
+
+> **Reset (Hard)** is only accessible through the palette — not bound to a key — to reduce accidental use.
 
 ## Configuration
 

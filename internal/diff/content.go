@@ -29,7 +29,8 @@ type ContentStyles struct {
 	DiffRemove  lipgloss.Style
 	DiffContext lipgloss.Style
 	SearchMatch lipgloss.Style
-	FocusedFile lipgloss.Style // Style for focused file header
+	FocusedFile  lipgloss.Style // Style for focused file header
+	ContentWidth int            // Available width for content (0 = unlimited)
 }
 
 // LineMatch represents a search match on a specific line
@@ -66,6 +67,18 @@ func RenderFileHeader(file FileDiff, focused bool, expanded bool, styles Content
 	}
 
 	header := fmt.Sprintf("%s %s  (%s)", indicator, filename, stats)
+
+	if styles.ContentWidth > 0 && lipgloss.Width(header) > styles.ContentWidth {
+		statsStr := fmt.Sprintf("  (%s)", stats)
+		maxFilename := styles.ContentWidth - lipgloss.Width(indicator+" ") - lipgloss.Width(statsStr)
+		if maxFilename > 8 {
+			runes := []rune(filename)
+			if len(runes) > maxFilename-3 {
+				filename = string(runes[:maxFilename-3]) + "..."
+			}
+		}
+		header = fmt.Sprintf("%s %s  (%s)", indicator, filename, stats)
+	}
 
 	if focused {
 		return styles.FocusedFile.Render(header)
@@ -156,7 +169,15 @@ func RenderContent(
 		// Render file content if expanded (and not binary)
 		if expanded[i] && !file.IsBinary {
 			for _, hunk := range file.Hunks {
-				content.WriteString(styles.DiffHunk.Render(hunk.Header))
+				hunkHeader := hunk.Header
+				if styles.ContentWidth > 0 && lipgloss.Width(hunkHeader) > styles.ContentWidth {
+					runes := []rune(hunkHeader)
+					maxWidth := styles.ContentWidth - 3
+					if maxWidth > 0 && len(runes) > maxWidth {
+						hunkHeader = string(runes[:maxWidth]) + "..."
+					}
+				}
+				content.WriteString(styles.DiffHunk.Render(hunkHeader))
 				content.WriteString("\n")
 				lineNum++
 

@@ -319,6 +319,14 @@ func DefaultCommands() []Command {
 		{ID: "checkout", Title: "Checkout Branch", Description: "Switch to selected branch", Category: "Branch", Keybinding: "enter"},
 		{ID: "new_branch", Title: "New Branch", Description: "Create a new branch", Category: "Branch", Keybinding: "n"},
 		{ID: "delete_branch", Title: "Delete Branch", Description: "Delete selected branch", Category: "Branch", Keybinding: "d"},
+		{ID: "merge", Title: "Merge Branch", Description: "Merge selected branch into current", Category: "Branch", Keybinding: "m"},
+		{ID: "rebase", Title: "Rebase onto Branch", Description: "Rebase current branch onto selected", Category: "Branch", Keybinding: "r"},
+
+		// Commit Operations
+		{ID: "cherry_pick", Title: "Cherry Pick", Description: "Apply selected commit to current branch", Category: "Commit", Keybinding: "e"},
+		{ID: "revert", Title: "Revert Commit", Description: "Revert selected commit (creates new commit)", Category: "Commit", Keybinding: "y"},
+		{ID: "reset_soft", Title: "Reset (Soft)", Description: "Move HEAD to commit, keep changes staged", Category: "Commit", Keybinding: "R"},
+		{ID: "reset_hard", Title: "Reset (Hard)", Description: "Move HEAD to commit, DISCARD all changes", Category: "Commit"},
 
 		// Stash & Worktree
 		{ID: "stash", Title: "Stash", Description: "Manage stashes", Category: "Stash", Keybinding: "S"},

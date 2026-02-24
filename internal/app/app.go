@@ -229,6 +229,7 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 					if err := m.repo.Stage(file.Path); err != nil {
 						m.setStatus(err.Error(), true)
 					} else {
+						m.setStatus("Staged "+file.Path, false)
 						cmds = append(cmds, m.refreshStatus())
 					}
 				}
@@ -257,6 +258,7 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 					if err := m.repo.Unstage(file.Path); err != nil {
 						m.setStatus(err.Error(), true)
 					} else {
+						m.setStatus("Unstaged "+file.Path, false)
 						cmds = append(cmds, m.refreshStatus())
 					}
 				}
@@ -286,7 +288,7 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			staged := m.filesPanel.StagedFiles()
 			if len(staged) > 0 {
 				lastMsg, lastHash, _ := m.repo.GetLastCommitInfo()
-				m.activeModal = modals.NewCommitModal(m.styles, staged, lastMsg, lastHash, func(message string, isAmend bool) tea.Cmd {
+				commitModal := modals.NewCommitModal(m.styles, staged, lastMsg, lastHash, func(message string, isAmend bool) tea.Cmd {
 					return func() tea.Msg {
 						var err error
 						if isAmend {
@@ -300,6 +302,8 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 						return refreshMsg{}
 					}
 				})
+			commitModal.SetTerminalWidth(m.width)
+			m.activeModal = commitModal
 			} else {
 				m.setStatus("No staged changes to commit", true)
 			}
@@ -337,6 +341,120 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				}
 				return operationDoneMsg{success: "Fetched from remote"}
 			})
+
+		case key.Matches(msg, m.keys.Merge):
+			if m.focused == ui.PanelBranches {
+				if branch := m.branchesPanel.SelectedBranch(); branch != nil {
+					branchName := branch.Name
+					current := m.repo.CurrentBranch()
+					m.activeModal = modals.NewConfirmModal(
+						m.styles,
+						"Merge Branch",
+						fmt.Sprintf("Merge '%s' into '%s'?", branchName, current),
+						func() tea.Cmd {
+							return func() tea.Msg {
+								if err := m.repo.Merge(branchName); err != nil {
+									return operationDoneMsg{err: err}
+								}
+								return operationDoneMsg{success: "Merged " + branchName}
+							}
+						},
+					)
+				}
+			}
+
+		case key.Matches(msg, m.keys.Rebase):
+			if m.focused == ui.PanelBranches {
+				if branch := m.branchesPanel.SelectedBranch(); branch != nil {
+					branchName := branch.Name
+					current := m.repo.CurrentBranch()
+					m.activeModal = modals.NewConfirmModal(
+						m.styles,
+						"Rebase",
+						fmt.Sprintf("Rebase '%s' onto '%s'?", current, branchName),
+						func() tea.Cmd {
+							return func() tea.Msg {
+								if err := m.repo.Rebase(branchName); err != nil {
+									return operationDoneMsg{err: err}
+								}
+								return operationDoneMsg{success: "Rebased onto " + branchName}
+							}
+						},
+					)
+				}
+			}
+
+		case key.Matches(msg, m.keys.CherryPick):
+			if m.focused == ui.PanelCommits {
+				if commit := m.commitsPanel.SelectedCommit(); commit != nil {
+					hash := commit.Hash
+					if len(hash) > 7 {
+						hash = hash[:7]
+					}
+					fullHash := commit.Hash
+					m.activeModal = modals.NewConfirmModal(
+						m.styles,
+						"Cherry Pick",
+						fmt.Sprintf("Apply commit %s to current branch?", hash),
+						func() tea.Cmd {
+							return func() tea.Msg {
+								if err := m.repo.CherryPick(fullHash); err != nil {
+									return operationDoneMsg{err: err}
+								}
+								return operationDoneMsg{success: "Applied commit " + hash}
+							}
+						},
+					)
+				}
+			}
+
+		case key.Matches(msg, m.keys.Reset):
+			if m.focused == ui.PanelCommits {
+				if commit := m.commitsPanel.SelectedCommit(); commit != nil {
+					hash := commit.Hash
+					if len(hash) > 7 {
+						hash = hash[:7]
+					}
+					fullHash := commit.Hash
+					m.activeModal = modals.NewConfirmModal(
+						m.styles,
+						"Reset (Soft)",
+						fmt.Sprintf("Reset to %s?\nChanges will be kept staged.", hash),
+						func() tea.Cmd {
+							return func() tea.Msg {
+								if err := m.repo.ResetSoft(fullHash); err != nil {
+									return operationDoneMsg{err: err}
+								}
+								return operationDoneMsg{success: "Reset to " + hash}
+							}
+						},
+					)
+				}
+			}
+
+		case key.Matches(msg, m.keys.Revert):
+			if m.focused == ui.PanelCommits {
+				if commit := m.commitsPanel.SelectedCommit(); commit != nil {
+					hash := commit.Hash
+					if len(hash) > 7 {
+						hash = hash[:7]
+					}
+					fullHash := commit.Hash
+					m.activeModal = modals.NewConfirmModal(
+						m.styles,
+						"Revert Commit",
+						fmt.Sprintf("Revert commit %s?\nThis creates a new commit.", hash),
+						func() tea.Cmd {
+							return func() tea.Msg {
+								if err := m.repo.Revert(fullHash); err != nil {
+									return operationDoneMsg{err: err}
+								}
+								return operationDoneMsg{success: "Reverted " + hash}
+							}
+						},
+					)
+				}
+			}
 
 		case key.Matches(msg, m.keys.Checkout), key.Matches(msg, m.keys.ShowCommit):
 			switch m.focused {
@@ -778,7 +896,7 @@ func (m *Model) executeCommand(cmd modals.Command) tea.Cmd {
 		staged := m.filesPanel.StagedFiles()
 		if len(staged) > 0 {
 			lastMsg, lastHash, _ := m.repo.GetLastCommitInfo()
-			m.activeModal = modals.NewCommitModal(m.styles, staged, lastMsg, lastHash, func(message string, isAmend bool) tea.Cmd {
+			commitModal := modals.NewCommitModal(m.styles, staged, lastMsg, lastHash, func(message string, isAmend bool) tea.Cmd {
 				return func() tea.Msg {
 					var err error
 					if isAmend {
@@ -792,6 +910,8 @@ func (m *Model) executeCommand(cmd modals.Command) tea.Cmd {
 					return refreshMsg{}
 				}
 			})
+		commitModal.SetTerminalWidth(m.width)
+		m.activeModal = commitModal
 		} else {
 			m.setStatus("No staged changes to commit", true)
 		}
@@ -872,6 +992,138 @@ func (m *Model) executeCommand(cmd modals.Command) tea.Cmd {
 				return operationDoneMsg{err: err}
 			}
 			return operationDoneMsg{success: "Fetched from remote"}
+		}
+	case "merge":
+		if m.focused == ui.PanelBranches {
+			if branch := m.branchesPanel.SelectedBranch(); branch != nil {
+				branchName := branch.Name
+				current := m.repo.CurrentBranch()
+				m.activeModal = modals.NewConfirmModal(
+					m.styles,
+					"Merge Branch",
+					fmt.Sprintf("Merge '%s' into '%s'?", branchName, current),
+					func() tea.Cmd {
+						return func() tea.Msg {
+							if err := m.repo.Merge(branchName); err != nil {
+								return operationDoneMsg{err: err}
+							}
+							return operationDoneMsg{success: "Merged " + branchName}
+						}
+					},
+				)
+			}
+		}
+	case "rebase":
+		if m.focused == ui.PanelBranches {
+			if branch := m.branchesPanel.SelectedBranch(); branch != nil {
+				branchName := branch.Name
+				current := m.repo.CurrentBranch()
+				m.activeModal = modals.NewConfirmModal(
+					m.styles,
+					"Rebase",
+					fmt.Sprintf("Rebase '%s' onto '%s'?", current, branchName),
+					func() tea.Cmd {
+						return func() tea.Msg {
+							if err := m.repo.Rebase(branchName); err != nil {
+								return operationDoneMsg{err: err}
+							}
+							return operationDoneMsg{success: "Rebased onto " + branchName}
+						}
+					},
+				)
+			}
+		}
+	case "cherry_pick":
+		if m.focused == ui.PanelCommits {
+			if commit := m.commitsPanel.SelectedCommit(); commit != nil {
+				hash := commit.Hash
+				if len(hash) > 7 {
+					hash = hash[:7]
+				}
+				fullHash := commit.Hash
+				m.activeModal = modals.NewConfirmModal(
+					m.styles,
+					"Cherry Pick",
+					fmt.Sprintf("Apply commit %s to current branch?", hash),
+					func() tea.Cmd {
+						return func() tea.Msg {
+							if err := m.repo.CherryPick(fullHash); err != nil {
+								return operationDoneMsg{err: err}
+							}
+							return operationDoneMsg{success: "Applied commit " + hash}
+						}
+					},
+				)
+			}
+		}
+	case "reset_soft":
+		if m.focused == ui.PanelCommits {
+			if commit := m.commitsPanel.SelectedCommit(); commit != nil {
+				hash := commit.Hash
+				if len(hash) > 7 {
+					hash = hash[:7]
+				}
+				fullHash := commit.Hash
+				m.activeModal = modals.NewConfirmModal(
+					m.styles,
+					"Reset (Soft)",
+					fmt.Sprintf("Reset to %s?\nChanges will be kept staged.", hash),
+					func() tea.Cmd {
+						return func() tea.Msg {
+							if err := m.repo.ResetSoft(fullHash); err != nil {
+								return operationDoneMsg{err: err}
+							}
+							return operationDoneMsg{success: "Reset to " + hash}
+						}
+					},
+				)
+			}
+		}
+	case "reset_hard":
+		if m.focused == ui.PanelCommits {
+			if commit := m.commitsPanel.SelectedCommit(); commit != nil {
+				hash := commit.Hash
+				if len(hash) > 7 {
+					hash = hash[:7]
+				}
+				fullHash := commit.Hash
+				m.activeModal = modals.NewConfirmModal(
+					m.styles,
+					"Reset (Hard) â WARNING",
+					fmt.Sprintf("Hard reset to %s?\n\nWARNING: All uncommitted changes\nwill be PERMANENTLY LOST.", hash),
+					func() tea.Cmd {
+						return func() tea.Msg {
+							if err := m.repo.ResetHard(fullHash); err != nil {
+								return operationDoneMsg{err: err}
+							}
+							return operationDoneMsg{success: "Hard reset to " + hash}
+						}
+					},
+				)
+			}
+		}
+	case "revert":
+		if m.focused == ui.PanelCommits {
+			if commit := m.commitsPanel.SelectedCommit(); commit != nil {
+				hash := commit.Hash
+				if len(hash) > 7 {
+					hash = hash[:7]
+				}
+				fullHash := commit.Hash
+				m.activeModal = modals.NewConfirmModal(
+					m.styles,
+					"Revert Commit",
+					fmt.Sprintf("Revert commit %s?\nThis creates a new commit.", hash),
+					func() tea.Cmd {
+						return func() tea.Msg {
+							if err := m.repo.Revert(fullHash); err != nil {
+								return operationDoneMsg{err: err}
+							}
+							return operationDoneMsg{success: "Reverted " + hash}
+						}
+					},
+				)
+			}
 		}
 	case "search":
 		worktrees, _ := m.repo.ListWorktrees()

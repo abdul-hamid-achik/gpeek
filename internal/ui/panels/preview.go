@@ -95,6 +95,7 @@ func (p *PreviewPanel) contentStyles() diff.ContentStyles {
 			Foreground(lipgloss.Color(p.styles.Theme.Background)).
 			Background(lipgloss.Color(p.styles.Theme.Primary)).
 			Bold(true),
+		ContentWidth: p.width - 4,
 	}
 }
 
