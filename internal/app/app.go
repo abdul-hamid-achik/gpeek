@@ -1089,7 +1089,7 @@ func (m *Model) executeCommand(cmd modals.Command) tea.Cmd {
 				fullHash := commit.Hash
 				m.activeModal = modals.NewConfirmModal(
 					m.styles,
-					"Reset (Hard) â WARNING",
+					"Reset (Hard) - WARNING",
 					fmt.Sprintf("Hard reset to %s?\n\nWARNING: All uncommitted changes\nwill be PERMANENTLY LOST.", hash),
 					func() tea.Cmd {
 						return func() tea.Msg {
