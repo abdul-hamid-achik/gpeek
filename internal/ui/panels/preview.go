@@ -7,9 +7,9 @@ import (
 	"github.com/abdul-hamid-achik/gpeek/internal/search"
 	"github.com/abdul-hamid-achik/gpeek/internal/ui"
 	uisearch "github.com/abdul-hamid-achik/gpeek/internal/ui/search"
-	"github.com/charmbracelet/bubbles/viewport"
-	tea "github.com/charmbracelet/bubbletea"
-	"github.com/charmbracelet/lipgloss"
+	"charm.land/bubbles/v2/viewport"
+	tea "charm.land/bubbletea/v2"
+	"charm.land/lipgloss/v2"
 )
 
 type PreviewPanel struct {
@@ -35,7 +35,7 @@ type PreviewPanel struct {
 }
 
 func NewPreviewPanel(styles *ui.Styles) *PreviewPanel {
-	vp := viewport.New(0, 0)
+	vp := viewport.New()
 	return &PreviewPanel{
 		styles:        styles,
 		viewport:      vp,
@@ -149,7 +149,7 @@ func (p *PreviewPanel) getVisibleFileIndex() int {
 		return 0
 	}
 
-	viewMiddle := p.viewport.YOffset + p.viewport.Height/2
+	viewMiddle := p.viewport.YOffset() + p.viewport.Height()/2
 
 	for i, pos := range p.filePositions {
 		if viewMiddle >= pos.StartLine && viewMiddle < pos.EndLine {
@@ -193,8 +193,8 @@ func (p *PreviewPanel) ScrollToFileByName(filename string) {
 
 func (p *PreviewPanel) SetSize(width, height int) {
 	p.BasePanel.SetSize(width, height)
-	p.viewport.Width = width
-	p.viewport.Height = height
+	p.viewport.SetWidth(width)
+	p.viewport.SetHeight(height)
 	p.diffSearch.SetWidth(width)
 
 	// Re-render content when size changes (for diff content)
@@ -272,7 +272,7 @@ func (p *PreviewPanel) Update(msg tea.Msg) tea.Cmd {
 
 				if p.expanded[p.focusedFile] {
 					// Check if there's more content below in current file
-					viewBottom := p.viewport.YOffset + p.viewport.Height
+					viewBottom := p.viewport.YOffset() + p.viewport.Height()
 					if currentPos.EndLine > viewBottom {
 						// More content below, scroll down
 						p.viewport.ScrollDown(1)
@@ -297,7 +297,7 @@ func (p *PreviewPanel) Update(msg tea.Msg) tea.Cmd {
 
 				if p.expanded[p.focusedFile] {
 					// Check if we're not at the top of the file content
-					if p.viewport.YOffset > currentPos.StartLine {
+					if p.viewport.YOffset() > currentPos.StartLine {
 						// Can scroll up within file
 						p.viewport.ScrollUp(1)
 						// Update focused file based on what's now visible

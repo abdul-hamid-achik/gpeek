@@ -6,10 +6,10 @@ import (
 
 	"github.com/abdul-hamid-achik/gpeek/internal/search"
 	"github.com/abdul-hamid-achik/gpeek/internal/ui"
-	"github.com/charmbracelet/bubbles/key"
-	"github.com/charmbracelet/bubbles/textinput"
-	tea "github.com/charmbracelet/bubbletea"
-	"github.com/charmbracelet/lipgloss"
+	"charm.land/bubbles/v2/key"
+	"charm.land/bubbles/v2/textinput"
+	tea "charm.land/bubbletea/v2"
+	"charm.land/lipgloss/v2"
 )
 
 // Command represents an action in the command palette
@@ -79,10 +79,15 @@ func DefaultPaletteStyles(styles *ui.Styles) PaletteStyles {
 // NewPaletteModal creates a new command palette modal
 func NewPaletteModal(commands []Command, onExecute func(Command) tea.Cmd, width, height int, uiStyles ...*ui.Styles) *PaletteModal {
 	input := textinput.New()
-	input.Placeholder = "Type to search commands..."
+	input.Placeholder = "Search commands..."
 	input.Focus()
 	input.CharLimit = 100
-	input.Width = width - 4
+	
+	// Use smaller width for palette - floating window in center
+	paletteWidth := 50
+	if width < 50 {
+		paletteWidth = width - 10
+	}
 
 	var ps PaletteStyles
 	if len(uiStyles) > 0 && uiStyles[0] != nil {
@@ -99,8 +104,8 @@ func NewPaletteModal(commands []Command, onExecute func(Command) tea.Cmd, width,
 		onExecute: onExecute,
 		styles:    ps,
 	}
-	m.width = width
-	m.height = height
+	m.width = paletteWidth
+	m.height = 0 // Will auto-size based on content
 
 	return m
 }
@@ -234,15 +239,18 @@ func (m *PaletteModal) filterCommands() {
 func (m *PaletteModal) View() string {
 	var b strings.Builder
 
-	// Input field
-	inputView := m.styles.Input.Render(m.input.View())
+	// Input field - compact single line
+	inputView := m.styles.Input.Width(m.width - 4).Render(m.input.View())
 	b.WriteString(inputView)
-	b.WriteString("\n\n")
+	b.WriteString("\n")
 
-	// Commands list
-	maxVisible := m.height - 6 // Account for input and borders
+	// Commands list - max 6 items for compact floating window
+	maxVisible := 6
+	if maxVisible > len(m.filtered) {
+		maxVisible = len(m.filtered)
+	}
 	if maxVisible < 1 {
-		maxVisible = 5
+		maxVisible = 1
 	}
 
 	start := 0
@@ -264,7 +272,7 @@ func (m *PaletteModal) View() string {
 			b.WriteString("\n")
 		}
 
-		// Command item
+		// Command item - single line
 		var itemStyle lipgloss.Style
 		if i == m.selected {
 			itemStyle = m.styles.ItemSelected
@@ -278,12 +286,8 @@ func (m *PaletteModal) View() string {
 			titlePart += keyPart
 		}
 
-		descPart := ""
-		if cmd.Description != "" {
-			descPart = "\n  " + m.styles.ItemDescription.Render(cmd.Description)
-		}
-
-		itemView := itemStyle.Width(m.width - 4).Render(titlePart + descPart)
+		// Single line display - no description to keep it compact
+		itemView := itemStyle.Width(m.width - 4).Render(titlePart)
 		b.WriteString(itemView)
 		b.WriteString("\n")
 		visibleCount++
@@ -294,7 +298,10 @@ func (m *PaletteModal) View() string {
 		b.WriteString(noResults)
 	}
 
-	return m.styles.Container.Width(m.width).Height(m.height).Render(b.String())
+	// Compact height - just enough for content
+	contentHeight := visibleCount + 2 // +2 for input and blank line
+
+	return m.styles.Container.Width(m.width).Height(contentHeight).Render(b.String())
 }
 
 // DefaultCommands returns a standard set of commands

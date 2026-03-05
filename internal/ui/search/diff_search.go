@@ -6,9 +6,9 @@ import (
 
 	"github.com/abdul-hamid-achik/gpeek/internal/search"
 	"github.com/abdul-hamid-achik/gpeek/internal/ui"
-	"github.com/charmbracelet/bubbles/textinput"
-	tea "github.com/charmbracelet/bubbletea"
-	"github.com/charmbracelet/lipgloss"
+	"charm.land/bubbles/v2/textinput"
+	tea "charm.land/bubbletea/v2"
+	"charm.land/lipgloss/v2"
 )
 
 // DiffSearchMatch represents a single match in the diff content
@@ -42,7 +42,7 @@ func NewDiffSearch(styles *ui.Styles) *DiffSearch {
 	ti := textinput.New()
 	ti.Placeholder = "search..."
 	ti.CharLimit = 100
-	ti.Width = 30
+	ti.SetWidth(30)
 
 	return &DiffSearch{
 		styles:        styles,
@@ -91,10 +91,11 @@ func (d *DiffSearch) HasSearch() bool {
 // SetWidth sets the width of the search bar
 func (d *DiffSearch) SetWidth(width int) {
 	d.width = width
-	d.input.Width = width - 30
-	if d.input.Width < 10 {
-		d.input.Width = 10
+	targetWidth := width - 30
+	if targetWidth < 10 {
+		targetWidth = 10
 	}
+	d.input.SetWidth(targetWidth)
 }
 
 // ToggleCaseSensitive toggles case sensitivity

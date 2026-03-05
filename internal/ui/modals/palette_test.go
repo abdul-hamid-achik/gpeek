@@ -4,7 +4,7 @@ import (
 	"strings"
 	"testing"
 
-	tea "github.com/charmbracelet/bubbletea"
+	tea "charm.land/bubbletea/v2"
 )
 
 func TestNewPaletteModal(t *testing.T) {
@@ -99,19 +99,19 @@ func TestPaletteModalNavigation(t *testing.T) {
 	}
 
 	// Navigate down
-	modal.Update(tea.KeyMsg{Type: tea.KeyDown})
+	modal.Update(tea.KeyPressMsg{Code: tea.KeyDown})
 	if modal.selected != 1 {
 		t.Errorf("after down, selected = %d, want 1", modal.selected)
 	}
 
 	// Navigate up
-	modal.Update(tea.KeyMsg{Type: tea.KeyUp})
+	modal.Update(tea.KeyPressMsg{Code: tea.KeyUp})
 	if modal.selected != 0 {
 		t.Errorf("after up, selected = %d, want 0", modal.selected)
 	}
 
 	// Try to go above 0
-	modal.Update(tea.KeyMsg{Type: tea.KeyUp})
+	modal.Update(tea.KeyPressMsg{Code: tea.KeyUp})
 	if modal.selected != 0 {
 		t.Errorf("should not go below 0, selected = %d", modal.selected)
 	}
@@ -126,7 +126,7 @@ func TestPaletteModalClose(t *testing.T) {
 	}
 
 	// Press Escape
-	result, _ := modal.Update(tea.KeyMsg{Type: tea.KeyEscape})
+	result, _ := modal.Update(tea.KeyPressMsg{Code: tea.KeyEscape})
 	if result != nil {
 		t.Error("pressing Escape should return nil modal")
 	}
@@ -149,7 +149,7 @@ func TestPaletteModalExecute(t *testing.T) {
 	modal := NewPaletteModal(commands, onExecute, 80, 24)
 
 	// Press Enter to execute
-	result, _ := modal.Update(tea.KeyMsg{Type: tea.KeyEnter})
+	result, _ := modal.Update(tea.KeyPressMsg{Code: tea.KeyEnter})
 
 	if !executed {
 		t.Error("command should have been executed")
@@ -285,7 +285,7 @@ func TestPaletteModalSelectionBounds(t *testing.T) {
 	modal.selected = len(commands) - 1
 
 	// Try to go past end
-	modal.Update(tea.KeyMsg{Type: tea.KeyDown})
+	modal.Update(tea.KeyPressMsg{Code: tea.KeyDown})
 	if modal.selected != len(commands)-1 {
 		t.Errorf("should not go past end, selected = %d, max = %d", modal.selected, len(commands)-1)
 	}
@@ -296,13 +296,13 @@ func TestPaletteModalJumpCommands(t *testing.T) {
 	modal := NewPaletteModal(commands, nil, 80, 24)
 
 	// Jump to end with ctrl+d
-	modal.Update(tea.KeyMsg{Type: tea.KeyCtrlD})
+	modal.Update(tea.KeyPressMsg{Code: 'd', Mod: tea.ModCtrl})
 	if modal.selected != len(modal.filtered)-1 {
 		t.Errorf("ctrl+d should jump to end, selected = %d, want %d", modal.selected, len(modal.filtered)-1)
 	}
 
 	// Jump to start with ctrl+u
-	modal.Update(tea.KeyMsg{Type: tea.KeyCtrlU})
+	modal.Update(tea.KeyPressMsg{Code: 'u', Mod: tea.ModCtrl})
 	if modal.selected != 0 {
 		t.Errorf("ctrl+u should jump to start, selected = %d, want 0", modal.selected)
 	}

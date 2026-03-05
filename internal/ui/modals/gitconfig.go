@@ -6,9 +6,9 @@ import (
 
 	"github.com/abdul-hamid-achik/gpeek/internal/git"
 	"github.com/abdul-hamid-achik/gpeek/internal/ui"
-	"github.com/charmbracelet/bubbles/textinput"
-	tea "github.com/charmbracelet/bubbletea"
-	"github.com/charmbracelet/lipgloss"
+	"charm.land/bubbles/v2/textinput"
+	tea "charm.land/bubbletea/v2"
+	"charm.land/lipgloss/v2"
 )
 
 // GitConfigModal displays and allows editing of git configuration
@@ -35,7 +35,7 @@ type GitConfigModal struct {
 func NewGitConfigModal(styles *ui.Styles, repo *git.Repository, width, height int) *GitConfigModal {
 	ti := textinput.New()
 	ti.CharLimit = 200
-	ti.Width = width - 20
+	ti.SetWidth(width - 20)
 
 	m := &GitConfigModal{
 		styles:           styles,

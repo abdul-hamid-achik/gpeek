@@ -4,10 +4,10 @@ import (
 	"strings"
 
 	"github.com/abdul-hamid-achik/gpeek/internal/ui"
-	"github.com/charmbracelet/bubbles/key"
-	"github.com/charmbracelet/bubbles/viewport"
-	tea "github.com/charmbracelet/bubbletea"
-	"github.com/charmbracelet/lipgloss"
+	"charm.land/bubbles/v2/key"
+	"charm.land/bubbles/v2/viewport"
+	tea "charm.land/bubbletea/v2"
+	"charm.land/lipgloss/v2"
 )
 
 type HelpModal struct {
@@ -18,7 +18,7 @@ type HelpModal struct {
 }
 
 func NewHelpModal(styles *ui.Styles, bindings [][]key.Binding) *HelpModal {
-	vp := viewport.New(60, 20) // Default size, will be overridden by SetSize
+	vp := viewport.New() // Default size, will be overridden by SetSize
 
 	m := &HelpModal{
 		styles:   styles,
@@ -47,8 +47,8 @@ func (m *HelpModal) SetSize(width, height int) {
 	if h < 10 {
 		h = 10
 	}
-	m.viewport.Width = w
-	m.viewport.Height = h - 5 // Account for title, footer, spacing
+	m.viewport.SetWidth(w)
+	m.viewport.SetHeight(h - 5) // Account for title, footer, spacing
 }
 
 func (m *HelpModal) Update(msg tea.Msg) (Modal, tea.Cmd) {

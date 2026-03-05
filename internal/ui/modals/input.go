@@ -4,9 +4,9 @@ import (
 	"strings"
 
 	"github.com/abdul-hamid-achik/gpeek/internal/ui"
-	"github.com/charmbracelet/bubbles/textinput"
-	tea "github.com/charmbracelet/bubbletea"
-	"github.com/charmbracelet/lipgloss"
+	"charm.land/bubbles/v2/textinput"
+	tea "charm.land/bubbletea/v2"
+	"charm.land/lipgloss/v2"
 )
 
 type InputModal struct {
@@ -26,7 +26,7 @@ func NewInputModal(styles *ui.Styles, title, prompt, placeholder string, onSubmi
 	ti.Placeholder = placeholder
 	ti.Focus()
 	ti.CharLimit = 100
-	ti.Width = 40
+	ti.SetWidth(40)
 
 	return &InputModal{
 		styles:      styles,
@@ -50,7 +50,7 @@ func (m *InputModal) SetTerminalWidth(termWidth int) {
 	}
 	m.modalWidth = w
 	// Account for modal padding (2 on each side) and border (1 on each side)
-	m.textinput.Width = w - 6
+	m.textinput.SetWidth(w - 6)
 }
 
 func (m *InputModal) Update(msg tea.Msg) (Modal, tea.Cmd) {

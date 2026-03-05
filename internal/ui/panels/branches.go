@@ -8,7 +8,7 @@ import (
 	"github.com/abdul-hamid-achik/gpeek/internal/search"
 	"github.com/abdul-hamid-achik/gpeek/internal/ui"
 	uisearch "github.com/abdul-hamid-achik/gpeek/internal/ui/search"
-	tea "github.com/charmbracelet/bubbletea"
+	tea "charm.land/bubbletea/v2"
 )
 
 type BranchesPanel struct {

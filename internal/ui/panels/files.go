@@ -8,8 +8,8 @@ import (
 	"github.com/abdul-hamid-achik/gpeek/internal/search"
 	"github.com/abdul-hamid-achik/gpeek/internal/ui"
 	uisearch "github.com/abdul-hamid-achik/gpeek/internal/ui/search"
-	"github.com/charmbracelet/bubbles/viewport"
-	tea "github.com/charmbracelet/bubbletea"
+	"charm.land/bubbles/v2/viewport"
+	tea "charm.land/bubbletea/v2"
 )
 
 // FileSelectedMsg is sent when the selected file changes in the Files panel
@@ -46,7 +46,7 @@ type FilesPanel struct {
 }
 
 func NewFilesPanel(styles *ui.Styles) *FilesPanel {
-	vp := viewport.New(0, 0)
+	vp := viewport.New()
 	return &FilesPanel{
 		styles:    styles,
 		viewport:  vp,
@@ -488,8 +488,8 @@ func (p *FilesPanel) ClearSelection() {
 
 func (p *FilesPanel) SetSize(width, height int) {
 	p.BasePanel.SetSize(width, height)
-	p.viewport.Width = width
-	p.viewport.Height = height
+	p.viewport.SetWidth(width)
+	p.viewport.SetHeight(height)
 	p.filterBar.SetWidth(width)
 }
 

@@ -5,7 +5,6 @@ import (
 
 	"github.com/abdul-hamid-achik/gpeek/internal/diff"
 	"github.com/abdul-hamid-achik/gpeek/internal/ui"
-	"github.com/charmbracelet/lipgloss"
 )
 
 func TestDiffModalFilePositionTracking(t *testing.T) {
@@ -263,16 +262,16 @@ diff --git a/file2.go b/file2.go
 	// Test scrolling to file 1
 	modal.scrollToFile(1)
 	// After scroll, YOffset should be at file 1's start line
-	if modal.viewport.YOffset != modal.filePositions[1].StartLine {
+	if modal.viewport.YOffset() != modal.filePositions[1].StartLine {
 		t.Errorf("After scrollToFile(1), YOffset should be %d (file 1 start), got %d",
-			modal.filePositions[1].StartLine, modal.viewport.YOffset)
+			modal.filePositions[1].StartLine, modal.viewport.YOffset())
 	}
 
 	// Test scrolling to file 0
 	modal.scrollToFile(0)
-	if modal.viewport.YOffset != modal.filePositions[0].StartLine {
+	if modal.viewport.YOffset() != modal.filePositions[0].StartLine {
 		t.Errorf("After scrollToFile(0), YOffset should be %d (file 0 start), got %d",
-			modal.filePositions[0].StartLine, modal.viewport.YOffset)
+			modal.filePositions[0].StartLine, modal.viewport.YOffset())
 	}
 
 	// Test invalid index (should not panic)
@@ -367,6 +366,5 @@ func TestDiffModalCountFileChanges(t *testing.T) {
 
 // Helper function to set up lipgloss for tests
 func init() {
-	// Set a default renderer for lipgloss in tests
-	lipgloss.SetColorProfile(0) // Use ASCII profile for consistent test output
+	// In v2, color profile is handled automatically
 }

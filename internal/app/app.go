@@ -10,9 +10,9 @@ import (
 	"github.com/abdul-hamid-achik/gpeek/internal/ui/modals"
 	"github.com/abdul-hamid-achik/gpeek/internal/ui/panels"
 	uisearch "github.com/abdul-hamid-achik/gpeek/internal/ui/search"
-	"github.com/charmbracelet/bubbles/key"
-	tea "github.com/charmbracelet/bubbletea"
-	"github.com/charmbracelet/lipgloss"
+	"charm.land/bubbles/v2/key"
+	tea "charm.land/bubbletea/v2"
+	"charm.land/lipgloss/v2"
 )
 
 type Model struct {
@@ -701,13 +701,17 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	return m, tea.Batch(cmds...)
 }
 
-func (m *Model) View() string {
+func (m *Model) View() tea.View {
 	if !m.ready {
-		return "Loading..."
+		v := tea.NewView("Loading...")
+		v.AltScreen = true
+		return v
 	}
 
 	if m.layout.IsTooSmall() {
-		return m.layout.TooSmallMessage()
+		v := tea.NewView(m.layout.TooSmallMessage())
+		v.AltScreen = true
+		return v
 	}
 
 	filesDim := m.layout.FilesDimensions()
@@ -788,12 +792,22 @@ func (m *Model) View() string {
 		view = m.overlayModal(view, modalView)
 	}
 
+	// Command palette: floating window centered on screen
 	if m.paletteModal != nil {
 		modalView := m.paletteModal.View()
-		view = m.overlayModal(view, modalView)
+		// Center the palette in the middle of the screen, overlaying content
+		view = lipgloss.Place(
+			m.width,
+			m.height,
+			lipgloss.Center,
+			lipgloss.Center,
+			modalView,
+		)
 	}
 
-	return view
+	v := tea.NewView(view)
+	v.AltScreen = true
+	return v
 }
 
 func (m *Model) renderStatusBar() string {
@@ -862,14 +876,15 @@ func (m *Model) getPanelHints() string {
 	return panelHints + "  " + paletteHint
 }
 
-func (m *Model) overlayModal(_, modal string) string {
+func (m *Model) overlayModal(mainView, modal string) string {
+	// Place the modal centered with some top padding
+	// Don't dim the background - let it show through transparently
 	return lipgloss.Place(
 		m.width,
 		m.height,
 		lipgloss.Center,
-		lipgloss.Center,
-		modal,
-		lipgloss.WithWhitespaceBackground(lipgloss.Color(m.styles.Theme.Background)),
+		lipgloss.Top,
+		"\n"+modal,
 	)
 }
 

@@ -6,9 +6,9 @@ import (
 
 	"github.com/abdul-hamid-achik/gpeek/internal/ui"
 	"github.com/abdul-hamid-achik/gpeek/internal/ui/panels"
-	"github.com/charmbracelet/bubbles/textarea"
-	tea "github.com/charmbracelet/bubbletea"
-	"github.com/charmbracelet/lipgloss"
+	"charm.land/bubbles/v2/textarea"
+	tea "charm.land/bubbletea/v2"
+	"charm.land/lipgloss/v2"
 )
 
 type CommitModal struct {

@@ -3,7 +3,7 @@ package search
 import (
 	"strings"
 
-	"github.com/charmbracelet/lipgloss"
+	"charm.land/lipgloss/v2"
 )
 
 // Highlighter applies visual highlighting to matched text

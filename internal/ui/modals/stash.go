@@ -7,9 +7,9 @@ import (
 
 	"github.com/abdul-hamid-achik/gpeek/internal/git"
 	"github.com/abdul-hamid-achik/gpeek/internal/ui"
-	"github.com/charmbracelet/bubbles/textinput"
-	tea "github.com/charmbracelet/bubbletea"
-	"github.com/charmbracelet/lipgloss"
+	"charm.land/bubbles/v2/textinput"
+	tea "charm.land/bubbletea/v2"
+	"charm.land/lipgloss/v2"
 )
 
 type StashMode int
@@ -47,7 +47,7 @@ type StashModal struct {
 func NewStashModal(styles *ui.Styles, stashes []git.Stash, repo *git.Repository, width, height int) *StashModal {
 	msgInput := textinput.New()
 	msgInput.Placeholder = "Stash message (optional)"
-	msgInput.Width = 50
+	msgInput.SetWidth(50)
 
 	return &StashModal{
 		styles:       styles,

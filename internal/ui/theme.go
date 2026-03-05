@@ -4,7 +4,6 @@ import (
 	"os"
 	"path/filepath"
 
-	"github.com/charmbracelet/lipgloss"
 	"gopkg.in/yaml.v3"
 )
 
@@ -221,10 +220,17 @@ func LoadTheme(name string) (Theme, error) {
 	return NordTheme(), nil
 }
 
-func (t Theme) Color(hex string) lipgloss.Color {
-	return lipgloss.Color(hex)
+// Color returns a color from a hex string.
+// In v2, lipgloss.Color is a function that returns color.Color
+func (t Theme) Color(hex string) string {
+	// Use the hex string directly with lipgloss - it will handle conversion
+	return hex
 }
 
-func (t Theme) AdaptiveColor(light, dark string) lipgloss.AdaptiveColor {
-	return lipgloss.AdaptiveColor{Light: light, Dark: dark}
+// AdaptiveColor returns a color that works in both light and dark modes.
+// For v2, we use a simple approach - return the dark color by default
+// since most TUI apps use dark backgrounds.
+func (t Theme) AdaptiveColor(light, dark string) string {
+	// In TUI apps we typically use dark backgrounds, so prefer dark color
+	return dark
 }

@@ -6,9 +6,9 @@ import (
 
 	"github.com/abdul-hamid-achik/gpeek/internal/search"
 	"github.com/abdul-hamid-achik/gpeek/internal/ui"
-	"github.com/charmbracelet/bubbles/textinput"
-	tea "github.com/charmbracelet/bubbletea"
-	"github.com/charmbracelet/lipgloss"
+	"charm.land/bubbles/v2/textinput"
+	tea "charm.land/bubbletea/v2"
+	"charm.land/lipgloss/v2"
 )
 
 // FilterBar provides inline filtering for panels
@@ -34,7 +34,7 @@ func NewFilterBar(styles *ui.Styles) *FilterBar {
 	ti := textinput.New()
 	ti.Placeholder = "type to filter..."
 	ti.CharLimit = 100
-	ti.Width = 30
+	ti.SetWidth(30)
 
 	return &FilterBar{
 		styles:        styles,
@@ -78,10 +78,11 @@ func (f *FilterBar) IsActive() bool {
 // SetWidth sets the width of the filter bar
 func (f *FilterBar) SetWidth(width int) {
 	f.width = width
-	f.input.Width = width - 20 // Account for decorations
-	if f.input.Width < 10 {
-		f.input.Width = 10
+	targetWidth := width - 20 // Account for decorations
+	if targetWidth < 10 {
+		targetWidth = 10
 	}
+	f.input.SetWidth(targetWidth)
 }
 
 // SetCounts updates the match/total counts for display

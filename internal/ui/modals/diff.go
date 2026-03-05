@@ -8,9 +8,9 @@ import (
 	"github.com/abdul-hamid-achik/gpeek/internal/search"
 	"github.com/abdul-hamid-achik/gpeek/internal/ui"
 	uisearch "github.com/abdul-hamid-achik/gpeek/internal/ui/search"
-	"github.com/charmbracelet/bubbles/viewport"
-	tea "github.com/charmbracelet/bubbletea"
-	"github.com/charmbracelet/lipgloss"
+	"charm.land/bubbles/v2/viewport"
+	tea "charm.land/bubbletea/v2"
+	"charm.land/lipgloss/v2"
 )
 
 type DiffModal struct {
@@ -36,7 +36,9 @@ type DiffModal struct {
 }
 
 func NewDiffModal(styles *ui.Styles, title, diffContent string, width, height int) *DiffModal {
-	vp := viewport.New(width-4, height-6)
+	vp := viewport.New()
+	vp.SetWidth(width - 4)
+	vp.SetHeight(height - 6)
 
 	// Parse diff once
 	parsedDiff := diff.Parse(diffContent)
@@ -81,7 +83,7 @@ func (m *DiffModal) contentStyles() diff.ContentStyles {
 			Foreground(lipgloss.Color(m.styles.Theme.Background)).
 			Background(lipgloss.Color(m.styles.Theme.Primary)).
 			Bold(true),
-		ContentWidth: m.viewport.Width,
+		ContentWidth: m.viewport.Width(),
 	}
 }
 
@@ -117,7 +119,7 @@ func (m *DiffModal) renderContent() {
 
 	if m.sideBySide {
 		// Side-by-side rendering uses the Renderer from diff package
-		contentStr := m.renderer.RenderSideBySide(m.rawDiff, m.viewport.Width)
+		contentStr := m.renderer.RenderSideBySide(m.rawDiff, m.viewport.Width())
 		m.filePositions = make([]diff.FilePosition, len(m.parsedDiff.Files))
 		m.viewport.SetContent(contentStr)
 		m.diffSearch.SetContent(contentStr)
@@ -143,7 +145,7 @@ func (m *DiffModal) getVisibleFileIndex() int {
 		return 0
 	}
 
-	viewMiddle := m.viewport.YOffset + m.viewport.Height/2
+	viewMiddle := m.viewport.YOffset() + m.viewport.Height()/2
 
 	for i, pos := range m.filePositions {
 		if viewMiddle >= pos.StartLine && viewMiddle < pos.EndLine {
@@ -239,7 +241,7 @@ func (m *DiffModal) Update(msg tea.Msg) (Modal, tea.Cmd) {
 
 				if m.expanded[m.focusedFile] {
 					// Check if there's more content below in current file
-					viewBottom := m.viewport.YOffset + m.viewport.Height
+					viewBottom := m.viewport.YOffset() + m.viewport.Height()
 					if currentPos.EndLine > viewBottom {
 						// More content below, scroll down
 						m.viewport.ScrollDown(1)
@@ -266,7 +268,7 @@ func (m *DiffModal) Update(msg tea.Msg) (Modal, tea.Cmd) {
 
 				if m.expanded[m.focusedFile] {
 					// Check if we're not at the top of the file content
-					if m.viewport.YOffset > currentPos.StartLine {
+					if m.viewport.YOffset() > currentPos.StartLine {
 						// Can scroll up within file
 						m.viewport.ScrollUp(1)
 						// Update focused file based on what's now visible

@@ -6,9 +6,9 @@ import (
 
 	"github.com/abdul-hamid-achik/gpeek/internal/git"
 	"github.com/abdul-hamid-achik/gpeek/internal/ui"
-	"github.com/charmbracelet/bubbles/textinput"
-	tea "github.com/charmbracelet/bubbletea"
-	"github.com/charmbracelet/lipgloss"
+	"charm.land/bubbles/v2/textinput"
+	tea "charm.land/bubbletea/v2"
+	"charm.land/lipgloss/v2"
 )
 
 type WorktreeMode int
@@ -40,11 +40,11 @@ type WorktreeModal struct {
 func NewWorktreeModal(styles *ui.Styles, worktrees []git.Worktree, repo *git.Repository) *WorktreeModal {
 	pathInput := textinput.New()
 	pathInput.Placeholder = "Path for new worktree"
-	pathInput.Width = 40
+	pathInput.SetWidth(40)
 
 	branchInput := textinput.New()
 	branchInput.Placeholder = "Branch name (optional)"
-	branchInput.Width = 40
+	branchInput.SetWidth(40)
 
 	return &WorktreeModal{
 		styles:      styles,

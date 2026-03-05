@@ -3,7 +3,7 @@ package search
 import (
 	"testing"
 
-	"github.com/charmbracelet/lipgloss"
+	"charm.land/lipgloss/v2"
 )
 
 func TestMergeMatches(t *testing.T) {

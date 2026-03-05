@@ -4,7 +4,7 @@ import (
 	"testing"
 
 	"github.com/abdul-hamid-achik/gpeek/internal/ui"
-	tea "github.com/charmbracelet/bubbletea"
+	tea "charm.land/bubbletea/v2"
 )
 
 func TestWorktreeModal_Modes(t *testing.T) {
@@ -17,13 +17,13 @@ func TestWorktreeModal_Modes(t *testing.T) {
 	}
 
 	// Test pressing 'n' switches to create mode
-	modal.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune("n")})
+	modal.Update(tea.KeyPressMsg{Text: "n"})
 	if modal.mode != WorktreeModeCreate {
 		t.Errorf("expected mode to be WorktreeModeCreate after pressing 'n', got %v", modal.mode)
 	}
 
 	// Test pressing 'esc' returns to list mode
-	modal.Update(tea.KeyMsg{Type: tea.KeyEscape})
+	modal.Update(tea.KeyPressMsg{Code: tea.KeyEscape})
 	if modal.mode != WorktreeModeList {
 		t.Errorf("expected mode to be WorktreeModeList after pressing 'esc', got %v", modal.mode)
 	}
@@ -35,7 +35,7 @@ func TestWorktreeModal_ConfirmDelete(t *testing.T) {
 	modal := NewWorktreeModal(styles, nil, nil)
 
 	// Without worktrees, 'd' should do nothing
-	result, _ := modal.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune("d")})
+	result, _ := modal.Update(tea.KeyPressMsg{Text: "d"})
 	if result == nil {
 		t.Error("expected modal to remain open when deleting with no worktrees")
 	}
@@ -56,10 +56,10 @@ func TestWorktreeModal_CreateViewValidation(t *testing.T) {
 	modal := NewWorktreeModal(styles, nil, nil)
 
 	// Switch to create mode
-	modal.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune("n")})
+	modal.Update(tea.KeyPressMsg{Text: "n"})
 
 	// Try to create without path - should set error
-	modal.Update(tea.KeyMsg{Type: tea.KeyEnter})
+	modal.Update(tea.KeyPressMsg{Code: tea.KeyEnter})
 	if modal.err != "Path is required" {
 		t.Errorf("expected error 'Path is required', got '%s'", modal.err)
 	}
@@ -75,13 +75,13 @@ func TestWorktreeModal_ConfirmDeleteNavigation(t *testing.T) {
 	modal.confirmFocused = 1 // Default to "No"
 
 	// Test tab switches focus
-	modal.Update(tea.KeyMsg{Type: tea.KeyTab})
+	modal.Update(tea.KeyPressMsg{Code: tea.KeyTab})
 	if modal.confirmFocused != 0 {
 		t.Errorf("expected confirmFocused to be 0 after tab, got %d", modal.confirmFocused)
 	}
 
 	// Test esc cancels
-	result, _ := modal.Update(tea.KeyMsg{Type: tea.KeyEscape})
+	result, _ := modal.Update(tea.KeyPressMsg{Code: tea.KeyEscape})
 	if modal.mode != WorktreeModeList {
 		t.Errorf("expected mode to be WorktreeModeList after esc, got %v", modal.mode)
 	}
