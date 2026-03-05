@@ -50,3 +50,6 @@ config.yaml
 # Tool-specific directories
 .vecgrep/
 .claude/
+
+# Task tracking directory
+.task/
